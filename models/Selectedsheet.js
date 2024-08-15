@@ -5,7 +5,7 @@ const SelectedSheetSchema = new Schema({
   // Defining fixed fields
   fName: { type: String, required: true },
   lName: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String },
   phone: { type: String, required: true },
   date: { type: Date, default: Date.now },
   status: { type: String, default: "not assigned" },

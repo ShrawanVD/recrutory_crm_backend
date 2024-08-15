@@ -9,7 +9,7 @@ const LanguageSchema = new mongoose.Schema({
 
 const MasterSheetSchema = new Schema({
   name: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String },
   phone: { type: String, required: true },
   date: { type: Date, default: Date.now },
   status: { type: String, default: null },
