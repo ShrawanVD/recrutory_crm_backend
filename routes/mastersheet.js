@@ -436,8 +436,8 @@ router.post("/candidate/import", async (req, res) => {
       return res.status(400).json({ message: "Data should be an array" });
     }
 
-    const normalizePhone = (phone) => phone.replace(/[\s\-]/g, '');
-    const normalizeEmail = (email) => email.toLowerCase().trim();
+    const normalizePhone = (phone) => phone ? phone.replace(/[\s\-]/g, '') : '';
+    const normalizeEmail = (email) => email ? email.toLowerCase().trim() : '';
 
     // Extract emails and phone numbers for duplicate checking
     const emails = candidates.map(candidate => normalizeEmail(candidate[1]));
@@ -508,6 +508,7 @@ router.post("/candidate/import", async (req, res) => {
 
     // Filter out duplicates
     const filteredCandidates = newCandidates.filter(candidate => 
+      candidate.email && candidate.phone && // Make sure both email and phone are present
       !existingEmails.has(candidate.email) && 
       !existingPhoneNumbers.has(candidate.phone)
     );
@@ -518,11 +519,10 @@ router.post("/candidate/import", async (req, res) => {
     res.status(201).json({ message: "Data imported successfully", result });
   } catch (err) {
     console.error("Error saving the candidates:", err);
-    res
-      .status(500)
-      .json({ message: "Failed to create candidates", error: err.message });
+    res.status(500).json({ message: "Failed to create candidates", error: err.message });
   }
 });
+
 
 // router.post("/candidate/import", async (req, res) => {
 //   try {
