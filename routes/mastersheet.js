@@ -436,25 +436,20 @@ router.post("/candidate/import", async (req, res) => {
       return res.status(400).json({ message: "Data should be an array" });
     }
 
-    const normalizePhone = (phone) => typeof phone === 'string' ? phone.replace(/[\s\-]/g, '') : '';
+    const normalizePhone = (phone) => typeof phone === 'number' ? String(phone).replace(/[\s\-]/g, '') : '';
     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : '';
 
-    // Extract emails and phone numbers for duplicate checking
-    const emails = candidates.map(candidate => normalizeEmail(candidate[1]));
-    const phoneNumbers = candidates.map(candidate => normalizePhone(candidate[2]));
-
-    const newCandidates = candidates.map((candidate) => {
+    // Skip the first row if it's a header
+    const filteredCandidates = candidates.slice(1).map((candidate) => {
       const phone = normalizePhone(candidate[2]);
       const email = normalizeEmail(candidate[1]);
-      const languages = [];
 
-      // Check if the language fields are present and split them
+      const languages = [];
       if (candidate[3] && candidate[4] && candidate[5]) {
         const lTypes = candidate[3].split(',').map(item => item.trim());
         const langs = candidate[4].split(',').map(item => item.trim());
         const proficiencyLevels = candidate[5].split(',').map(item => item.trim());
 
-        // Create language objects
         for (let i = 0; i < lTypes.length; i++) {
           languages.push({
             lType: lTypes[i],
@@ -495,6 +490,9 @@ router.post("/candidate/import", async (req, res) => {
       };
     });
 
+    const emails = filteredCandidates.map(candidate => candidate.email);
+    const phoneNumbers = filteredCandidates.map(candidate => candidate.phone);
+
     // Find existing candidates by normalized email or phone number
     const existingCandidates = await Mastersheet.find({
       $or: [
@@ -507,14 +505,14 @@ router.post("/candidate/import", async (req, res) => {
     const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
 
     // Filter out duplicates
-    const filteredCandidates = newCandidates.filter(candidate => 
-      candidate.email && candidate.phone && // Ensure both email and phone are present
+    const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
+      candidate.email && candidate.phone && 
       !existingEmails.has(candidate.email) && 
       !existingPhoneNumbers.has(candidate.phone)
     );
 
     // Insert non-duplicate candidates
-    const result = await Mastersheet.insertMany(filteredCandidates);
+    const result = await Mastersheet.insertMany(nonDuplicateCandidates);
 
     res.status(201).json({ message: "Data imported successfully", result });
   } catch (err) {
@@ -522,6 +520,7 @@ router.post("/candidate/import", async (req, res) => {
     res.status(500).json({ message: "Failed to create candidates", error: err.message });
   }
 });
+
 
 
 
