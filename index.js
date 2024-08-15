@@ -1,3 +1,18 @@
+// working perfectly fine -> 500 entries can be added at a time, takes a bit of time though
+
+
+// this commit: increase the size limit to 10mb lets see if it works or not: 
+
+// changes that has been made till now: 
+// 1. First row is skipped
+// 2. Email is null then also entry is added
+// 3. Ltype or Llevels are null, then also language detials sections is added, 
+
+// need to work: 
+// duplicates can be still seen 
+
+
+
 import express from 'express';
 import cors from 'cors';
 import connectToMongo from './database/db.js';
