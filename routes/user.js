@@ -411,7 +411,7 @@ router.put("/update-status", async (req, res) => {
     else if (interestedStatus !== "interested") {
       candidate.interested = null;
       candidate.markedInterestedDate = null;
-      if (candidate.feedback === "" || candidate.remark === "") {
+      if (candidate.feedback === "" && candidate.remark === "") {
         return res.status(404).json({
           message:
             "Please provide the feedback and remark for not being interested",
