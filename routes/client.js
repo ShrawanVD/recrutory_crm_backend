@@ -398,42 +398,32 @@ router.put(
   async (req, res) => {
     try {
       const { clientId, processId, candidateId } = req.params;
+      const { status, feedback, remark } = req.body;
 
       // Find the client
       const client = await ClientSheet.findById(clientId);
-
-      if (!client) {
-        return res.status(404).json({ message: "Client not found" });
-      }
+      if (!client) return res.status(404).json({ message: "Client not found" });
 
       // Find the process within the client
       const process = client.clientProcess.id(processId);
-
-      if (!process) {
-        return res.status(404).json({ message: "Process not found" });
-      }
+      if (!process) return res.status(404).json({ message: "Process not found" });
 
       // Find the interested candidate within the process
       const candidate = process.interestedCandidates.id(candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate not found in the process" });
 
-      if (!candidate) {
-        return res
-          .status(404)
-          .json({ message: "Candidate not found in the process" });
+      // Check if status is 'Rejected' and feedback/remark are missing
+      if (status === "Rejected" && (!feedback || !remark)) {
+        return res.status(400).json({ message: "Feedback and remark are required when status is 'Rejected'" });
       }
 
       // Update specific fields in the candidate
-      candidate.assignedRecruiter =
-        req.body.assignedRecruiter || candidate.assignedRecruiter;
-      candidate.status = req.body.status || candidate.status;
+      candidate.assignedRecruiter = req.body.assignedRecruiter || candidate.assignedRecruiter;
+      candidate.status = status || candidate.status;
       candidate.interested = req.body.interested || candidate.interested;
 
       // Check if the assignProcess field should be enabled or disabled
-      if (candidate.status === "Rejected" || candidate.interested !== "interested") {
-        candidate.isProcessAssigned = false;
-      } else {
-        candidate.isProcessAssigned = true;
-      }
+      candidate.isProcessAssigned = (candidate.status === "Rejected" || candidate.interested !== "interested") ? false : true;
 
       // Fields to update in the MasterSheet and other copies
       const fieldsToUpdateInMaster = {
@@ -454,8 +444,8 @@ router.put(
         wfh: req.body.wfh,
         resumeLink: req.body.resumeLink,
         linkedinLink: req.body.linkedinLink,
-        feedback: req.body.feedback,
-        remark: req.body.remark,
+        feedback: feedback || candidate.feedback,
+        remark: remark || candidate.remark,
         company: req.body.company,
         voiceNonVoice: req.body.voiceNonVoice,
         source: req.body.source,
@@ -464,27 +454,19 @@ router.put(
 
       // Find and update the candidate in the MasterSheet
       const masterCandidate = await Mastersheet.findById(candidate.candidateId);
-
       if (masterCandidate) {
         Object.assign(masterCandidate, fieldsToUpdateInMaster);
-
-        console.log("editing in the intCand[] of the process: " + masterCandidate);
-        
         await masterCandidate.save();
 
         // Find and update all copies of the candidate in other processes
         const clients = await ClientSheet.find({
-          "clientProcess.interestedCandidates.candidateId":
-            candidate.candidateId,
+          "clientProcess.interestedCandidates.candidateId": candidate.candidateId,
         });
 
         for (const client of clients) {
           for (const process of client.clientProcess) {
             for (const candidateCopy of process.interestedCandidates) {
-              if (
-                candidateCopy.candidateId.toString() ===
-                candidate.candidateId.toString()
-              ) {
+              if (candidateCopy.candidateId.toString() === candidate.candidateId.toString()) {
                 Object.assign(candidateCopy, fieldsToUpdateInMaster);
               }
             }
@@ -492,23 +474,139 @@ router.put(
           await client.save();
         }
       } else {
-        console.warn(
-          `Master candidate with ID ${candidate.candidateId} not found.`
-        );
+        console.warn(`Master candidate with ID ${candidate.candidateId} not found.`);
       }
 
-      // Save the client document after updating candidate details
-      await client.save();
+      // Remove candidate from the interestedCandidates array if status is Rejected
+      if (status === "Rejected") {
+        process.interestedCandidates.pull(candidate._id);
+        await client.save();
+      }
 
-      res
-        .status(200)
-        .json({ message: "Candidate details updated successfully", candidate });
+      res.status(200).json({ message: "Candidate details updated successfully", candidate });
     } catch (error) {
       console.error("Error updating candidate details:", error);
       res.status(500).json({ message: "Server error", error });
     }
   }
 );
+
+// router.put(
+//   "/clients/:clientId/processes/:processId/candidates/:candidateId",
+//   async (req, res) => {
+//     try {
+//       const { clientId, processId, candidateId } = req.params;
+
+//       // Find the client
+//       const client = await ClientSheet.findById(clientId);
+
+//       if (!client) {
+//         return res.status(404).json({ message: "Client not found" });
+//       }
+
+//       // Find the process within the client
+//       const process = client.clientProcess.id(processId);
+
+//       if (!process) {
+//         return res.status(404).json({ message: "Process not found" });
+//       }
+
+//       // Find the interested candidate within the process
+//       const candidate = process.interestedCandidates.id(candidateId);
+
+//       if (!candidate) {
+//         return res
+//           .status(404)
+//           .json({ message: "Candidate not found in the process" });
+//       }
+
+//       // Update specific fields in the candidate
+//       candidate.assignedRecruiter =
+//         req.body.assignedRecruiter || candidate.assignedRecruiter;
+//       candidate.status = req.body.status || candidate.status;
+//       candidate.interested = req.body.interested || candidate.interested;
+
+//       // Check if the assignProcess field should be enabled or disabled
+//       if (candidate.status === "Rejected" || candidate.interested !== "interested") {
+//         candidate.isProcessAssigned = false;
+//       } else {
+//         candidate.isProcessAssigned = true;
+//       }
+
+//       // Fields to update in the MasterSheet and other copies
+//       const fieldsToUpdateInMaster = {
+//         name: req.body.name,
+//         email: req.body.email,
+//         phone: req.body.phone,
+//         language: req.body.language,
+//         jbStatus: req.body.jbStatus,
+//         qualification: req.body.qualification,
+//         industry: req.body.industry,
+//         domain: req.body.domain,
+//         exp: req.body.exp,
+//         cLocation: req.body.cLocation,
+//         pLocation: req.body.pLocation,
+//         currentCTC: req.body.currentCTC,
+//         expectedCTC: req.body.expectedCTC,
+//         noticePeriod: req.body.noticePeriod,
+//         wfh: req.body.wfh,
+//         resumeLink: req.body.resumeLink,
+//         linkedinLink: req.body.linkedinLink,
+//         feedback: req.body.feedback,
+//         remark: req.body.remark,
+//         company: req.body.company,
+//         voiceNonVoice: req.body.voiceNonVoice,
+//         source: req.body.source,
+//         isProcessAssigned: candidate.isProcessAssigned == false ? false : true,
+//       };
+
+//       // Find and update the candidate in the MasterSheet
+//       const masterCandidate = await Mastersheet.findById(candidate.candidateId);
+
+//       if (masterCandidate) {
+//         Object.assign(masterCandidate, fieldsToUpdateInMaster);
+
+//         console.log("editing in the intCand[] of the process: " + masterCandidate);
+        
+//         await masterCandidate.save();
+
+//         // Find and update all copies of the candidate in other processes
+//         const clients = await ClientSheet.find({
+//           "clientProcess.interestedCandidates.candidateId":
+//             candidate.candidateId,
+//         });
+
+//         for (const client of clients) {
+//           for (const process of client.clientProcess) {
+//             for (const candidateCopy of process.interestedCandidates) {
+//               if (
+//                 candidateCopy.candidateId.toString() ===
+//                 candidate.candidateId.toString()
+//               ) {
+//                 Object.assign(candidateCopy, fieldsToUpdateInMaster);
+//               }
+//             }
+//           }
+//           await client.save();
+//         }
+//       } else {
+//         console.warn(
+//           `Master candidate with ID ${candidate.candidateId} not found.`
+//         );
+//       }
+
+//       // Save the client document after updating candidate details
+//       await client.save();
+
+//       res
+//         .status(200)
+//         .json({ message: "Candidate details updated successfully", candidate });
+//     } catch (error) {
+//       console.error("Error updating candidate details:", error);
+//       res.status(500).json({ message: "Server error", error });
+//     }
+//   }
+// );
 
 // PUT request to handle multiple candidates, to assign a common recruiter (holds a function call for the updateRecruiterCounts function given below)
 router.put(
