@@ -392,7 +392,7 @@ router.put("/clients/:clientId/processes/:processId", async (req, res) => {
   }
 });
 
-// PUT request to update specific candidate details within a process
+// PUT request to update specific candidate's specific details within a process
 router.put(
   "/clients/:clientId/processes/:processId/candidates/:candidateId",
   async (req, res) => {
@@ -644,6 +644,7 @@ router.put(
 // };
 
 // get all selected candidates
+
 router.get("/selected-candidates", async (req, res) => {
   try {
     // Fetch all clients

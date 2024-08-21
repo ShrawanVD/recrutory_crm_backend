@@ -444,7 +444,7 @@ router.post("/candidate/import", async (req, res) => {
     //   typeof phone === 'number' ? String(phone).trim().replace(/[\s\-]/g, '') : '';
 
     
-    // trim to avoid leading and trailing spaces as well as COUNTRY CODE
+    // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to only those which has it)
     const normalizePhone = (phone) => {
       if (typeof phone !== 'string' && typeof phone !== 'number') return '';
     
@@ -672,9 +672,6 @@ router.post("/candidate/import", async (req, res) => {
 //     res.status(500).json({ message: "Failed to create candidates", error: err.message });
 //   }
 // });
-
-
-
 
 // working fine router.post("/candidate/import", async (req, res) => {
 //   try {
@@ -1320,5 +1317,10 @@ router.post("/candidate/import", async (req, res) => {
 //       .json({ message: "Failed to create candidates", error: err.message });
 //   }
 // });
+
+
+
+
+
 
 export default router;

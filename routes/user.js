@@ -277,9 +277,9 @@ router.get('/assigned-candidates', async (req, res) => {
             console.log("candidate.assignedRecruiterId is: " + candidate.assignedRecruiterId);
             console.log("recruiterId is: " + recruiterId);
             candidates.push({
-              candidateId: candidate.candidateId._id, // Include only _id of candidateId
-              clientProcessId: process._id, // Include _id of clientProcess
-              clientId: client._id, // Include _id of client
+              candidateId: candidate.candidateId, // Include only _id of candidateId
+              clientProcessId: process.id, // Include _id of clientProcess
+              clientId: client.id, // Include _id of client
               ...candidate._doc,
               assignedProcess: `${client.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`
             });
