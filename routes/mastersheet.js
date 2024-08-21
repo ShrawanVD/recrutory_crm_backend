@@ -442,8 +442,8 @@ router.post("/candidate/import", async (req, res) => {
     // const normalizePhone = (phone) =>
     //   typeof phone === 'string' ? phone.trim().replace(/[\s\-]/g, '') : 
     //   typeof phone === 'number' ? String(phone).trim().replace(/[\s\-]/g, '') : '';
-    
 
+    
     // trim to avoid leading and trailing spaces as well as COUNTRY CODE
     const normalizePhone = (phone) => {
       if (typeof phone !== 'string' && typeof phone !== 'number') return '';
@@ -453,20 +453,45 @@ router.post("/candidate/import", async (req, res) => {
       // Trim leading and trailing spaces
       normalizedPhone = normalizedPhone.trim();
     
-      // Detect if the number starts with a country code (e.g., +91 or 91)
-      const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+      // Check if the number starts with a '+', indicating it has a country code
+      const hasPlus = normalizedPhone.startsWith('+');
     
       // Remove internal spaces and dashes
       normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
     
-      // If there's a country code (with or without a leading +), ensure it's formatted as +<country code>
-      if (hasCountryCode) {
-        const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
-        normalizedPhone = `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+      // If it originally had a '+', retain it; otherwise, leave the number as is
+      if (hasPlus) {
+        return normalizedPhone;
+      } else {
+        // If there’s no leading '+', return the number without altering it
+        return normalizedPhone.replace(/^\+/, ''); // Just a precaution in case a "+" is present accidentally
       }
-    
-      return normalizedPhone;
     };
+    
+
+    // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to every field)
+    // const normalizePhone = (phone) => {
+    //   if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+    
+    //   let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+    
+    //   // Trim leading and trailing spaces
+    //   normalizedPhone = normalizedPhone.trim();
+    
+    //   // Detect if the number starts with a country code (e.g., +91 or 91)
+    //   const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+    
+    //   // Remove internal spaces and dashes
+    //   normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+    
+    //   // If there's a country code (with or without a leading +), ensure it's formatted as +<country code>
+    //   if (hasCountryCode) {
+    //     const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+    //     normalizedPhone = `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+    //   }
+    
+    //   return normalizedPhone;
+    // };
     
 
     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
