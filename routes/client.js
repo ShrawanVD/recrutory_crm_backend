@@ -398,7 +398,11 @@ router.put(
   async (req, res) => {
     try {
       const { clientId, processId, candidateId } = req.params;
-      const { status, feedback, remark } = req.body;
+      const { lead } = req.body;
+
+      const status = lead.status;
+      const feedback = lead.feedback;
+      const remark = lead.remark;
 
       // Find the client
       const client = await ClientSheet.findById(clientId);
