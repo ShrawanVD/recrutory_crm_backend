@@ -436,8 +436,15 @@ router.post("/candidate/import", async (req, res) => {
       return res.status(400).json({ message: "Data should be an array" });
     }
 
-    const normalizePhone = (phone) => typeof phone === 'number' ? String(phone).replace(/[\s\-]/g, '') : '';
+    // const normalizePhone = (phone) => typeof phone === 'number' ? String(phone).replace(/[\s\-]/g, '') : '';
+
+    // trim to avoid leading and trailing spaces
+    const normalizePhone = (phone) =>
+      typeof phone === 'string' ? phone.trim().replace(/[\s\-]/g, '') : 
+      typeof phone === 'number' ? String(phone).trim().replace(/[\s\-]/g, '') : '';
+    
     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+
 
     // Skip the first row if it's a header
     const filteredCandidates = candidates.slice(1).map((candidate) => {
