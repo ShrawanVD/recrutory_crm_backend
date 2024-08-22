@@ -33,7 +33,7 @@ router.post("/candidates", async (req, res) => {
       // If a country code is detected, keep it intact
       if (hasCountryCode) {
         const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
-        return `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+        return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
       }
 
       // Return the normalized phone number without adding a country code
