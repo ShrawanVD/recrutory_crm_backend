@@ -15,10 +15,50 @@ router.get("/", (req, res) => {
 // Create a new candidate
 router.post("/candidates", async (req, res) => {
   try {
+    // Normalize phone number (trim spaces, handle country codes, remove internal spaces/dashes)
+    const normalizePhone = (phone) => {
+      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+
+      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+
+      // Trim leading and trailing spaces
+      normalizedPhone = normalizedPhone.trim();
+
+      // Detect and handle the presence of country codes (with or without a '+')
+      const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+
+      // Remove internal spaces and dashes
+      normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+
+      // If a country code is detected, keep it intact
+      if (hasCountryCode) {
+        const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+        return `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+      }
+
+      // Return the normalized phone number without adding a country code
+      return normalizedPhone;
+    };
+
+    const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+
+    // Normalize the phone number before checking for duplicates
+    const phone = normalizePhone(req.body.phone);
+
+    // Check if a candidate with the same normalized phone number already exists
+    const existingCandidate = await Mastersheet.findOne({ phone });
+
+    if (existingCandidate) {
+      return res
+        .status(400)
+        .json({ message: "Candidate with this phone number already exists." });
+    }
+
+    // Create a new candidate if no duplicates are found
     const candidate = new Mastersheet({
       name: req.body.name,
-      email: req.body.email,
-      phone: req.body.phone,
+      email: normalizeEmail(req.body.email),
+      phone: phone,
       status: req.body.status || null,
       assignProcess: req.body.assignProcess || null,
       interested: req.body.interested || null,
@@ -54,6 +94,48 @@ router.post("/candidates", async (req, res) => {
       .json({ message: "Failed to create candidate", error: err.message });
   }
 });
+
+// router.post("/candidates", async (req, res) => {
+//   try {
+//     const candidate = new Mastersheet({
+//       name: req.body.name,
+//       email: req.body.email,
+//       phone: req.body.phone,
+//       status: req.body.status || null,
+//       assignProcess: req.body.assignProcess || null,
+//       interested: req.body.interested || null,
+//       assignedRecruiter: req.body.assignedRecruiter || null,
+//       language: req.body.language,
+//       jbStatus: req.body.jbStatus,
+//       qualification: req.body.qualification,
+//       industry: req.body.industry,
+//       domain: req.body.domain,
+//       exp: req.body.exp,
+//       cLocation: req.body.cLocation,
+//       pLocation: req.body.pLocation,
+//       currentCTC: req.body.currentCTC,
+//       expectedCTC: req.body.expectedCTC,
+//       noticePeriod: req.body.noticePeriod,
+//       wfh: req.body.wfh,
+//       resumeLink: req.body.resumeLink,
+//       linkedinLink: req.body.linkedinLink,
+//       feedback: req.body.feedback,
+//       remark: req.body.remark,
+//       company: req.body.company,
+//       voiceNonVoice: req.body.voiceNonVoice,
+//       source: req.body.source,
+//     });
+
+//     const newCandidate = await candidate.save();
+//     console.log("New Candidate is: " + newCandidate);
+//     res.status(201).json(newCandidate);
+//   } catch (err) {
+//     console.error("Error saving the Candidate:", err);
+//     res
+//       .status(500)
+//       .json({ message: "Failed to create candidate", error: err.message });
+//   }
+// });
 
 // GET all candidates
 router.get("/candidates", async (req, res) => {
