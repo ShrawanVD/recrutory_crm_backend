@@ -140,12 +140,18 @@ router.post("/candidates", async (req, res) => {
 // GET all candidates
 router.get("/candidates", async (req, res) => {
   try {
-    const candidates = await Mastersheet.find();
+    // Sort candidates by the 'createdAt' field in descending order
+    // const candidates = await Mastersheet.find().sort({ createdAt: -1 });
+
+    // If you don’t have a 'createdAt' field, you can sort by '_id'
+    const candidates = await Mastersheet.find().sort({ _id: -1 });
+
     res.json(candidates);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
 
 // GET candidate by id
 router.get("/candidates/:id", async (req, res) => {
