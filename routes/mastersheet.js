@@ -252,6 +252,7 @@ router.delete("/candidates/:id", async (req, res) => {
 });
 
 // PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
+// PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
 router.put("/candidates/:id", async (req, res) => {
   try {
     const candidate = await Mastersheet.findById(req.params.id);
@@ -259,18 +260,58 @@ router.put("/candidates/:id", async (req, res) => {
       return res.status(404).json({ message: "Candidate not found" });
     }
 
+    // Normalize phone number
+    const normalizePhone = (phone) => {
+      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+
+      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+
+      // Trim leading and trailing spaces
+      normalizedPhone = normalizedPhone.trim();
+
+      // Detect and handle the presence of country codes (with or without a '+')
+      const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+
+      // Remove internal spaces and dashes
+      normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+
+      // If a country code is detected, keep it intact
+      if (hasCountryCode) {
+        const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+        return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+      }
+
+      // Return the normalized phone number without adding a country code
+      return normalizedPhone;
+    };
+
+    const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
+
+    // Normalize the phone number before performing checks
+    const normalizedPhone = normalizePhone(req.body.phone);
+
+    // Check if any other candidate (excluding the current one) has the same normalized phone number
+    const existingCandidate = await Mastersheet.findOne({
+      phone: normalizedPhone,
+      _id: { $ne: req.params.id }, // Exclude the current candidate being edited
+    });
+
+    if (existingCandidate) {
+      return res.status(400).json({ message: "Candidate with this phone number already exists." });
+    }
+
+    // Continue with updating the candidate if no duplicates are found
     const newAssignProcess = req.body.assignProcess || candidate.assignProcess;
     const isAssignProcessChanged = newAssignProcess !== candidate.assignProcess;
 
     // Updating candidate with new entries
     candidate.name = req.body.name || candidate.name;
-    candidate.email = req.body.email || candidate.email;
-    candidate.phone = req.body.phone || candidate.phone;
+    candidate.email = normalizeEmail(req.body.email) || candidate.email;
+    candidate.phone = normalizedPhone || candidate.phone;
     candidate.status = req.body.status || candidate.status;
     candidate.assignProcess = newAssignProcess;
     candidate.interested = req.body.interested || candidate.interested;
-    candidate.assignedRecruiter =
-      req.body.assignedRecruiter || candidate.assignedRecruiter;
+    candidate.assignedRecruiter = req.body.assignedRecruiter || candidate.assignedRecruiter;
     candidate.language = req.body.language || candidate.language;
     candidate.jbStatus = req.body.jbStatus || candidate.jbStatus;
     candidate.qualification = req.body.qualification || candidate.qualification;
@@ -294,8 +335,7 @@ router.put("/candidates/:id", async (req, res) => {
     if (isAssignProcessChanged) {
       // If assignProcess is changed
       console.log("AssignProcess changed");
-      const [clientName, processName, processLanguage] =
-        newAssignProcess.split(" - ");
+      const [clientName, processName, processLanguage] = newAssignProcess.split(" - ");
 
       const client = await ClientSheet.findOne({
         clientName,
@@ -347,8 +387,7 @@ router.put("/candidates/:id", async (req, res) => {
         await candidate.save();
 
         return res.status(200).json({
-          message:
-            "Candidate added to interestedCandidates and updated in MasterSheet",
+          message: "Candidate added to interestedCandidates and updated in MasterSheet",
         });
       } else {
         return res.status(404).json({ message: "Client or process not found" });
@@ -400,10 +439,163 @@ router.put("/candidates/:id", async (req, res) => {
       });
     }
   } catch (err) {
-    console.log("in the catch box");
+    console.error("Error updating the Candidate:", err);
     res.status(500).json({ message: err.message });
   }
 });
+
+// router.put("/candidates/:id", async (req, res) => {
+//   try {
+//     const candidate = await Mastersheet.findById(req.params.id);
+//     if (!candidate) {
+//       return res.status(404).json({ message: "Candidate not found" });
+//     }
+
+//     const newAssignProcess = req.body.assignProcess || candidate.assignProcess;
+//     const isAssignProcessChanged = newAssignProcess !== candidate.assignProcess;
+
+//     // Updating candidate with new entries
+//     candidate.name = req.body.name || candidate.name;
+//     candidate.email = req.body.email || candidate.email;
+//     candidate.phone = req.body.phone || candidate.phone;
+//     candidate.status = req.body.status || candidate.status;
+//     candidate.assignProcess = newAssignProcess;
+//     candidate.interested = req.body.interested || candidate.interested;
+//     candidate.assignedRecruiter =
+//       req.body.assignedRecruiter || candidate.assignedRecruiter;
+//     candidate.language = req.body.language || candidate.language;
+//     candidate.jbStatus = req.body.jbStatus || candidate.jbStatus;
+//     candidate.qualification = req.body.qualification || candidate.qualification;
+//     candidate.industry = req.body.industry || candidate.industry;
+//     candidate.domain = req.body.domain || candidate.domain;
+//     candidate.exp = req.body.exp || candidate.exp;
+//     candidate.cLocation = req.body.cLocation || candidate.cLocation;
+//     candidate.pLocation = req.body.pLocation || candidate.pLocation;
+//     candidate.currentCTC = req.body.currentCTC || candidate.currentCTC;
+//     candidate.expectedCTC = req.body.expectedCTC || candidate.expectedCTC;
+//     candidate.noticePeriod = req.body.noticePeriod || candidate.noticePeriod;
+//     candidate.wfh = req.body.wfh || candidate.wfh;
+//     candidate.resumeLink = req.body.resumeLink || candidate.resumeLink;
+//     candidate.linkedinLink = req.body.linkedinLink || candidate.linkedinLink;
+//     candidate.feedback = req.body.feedback || candidate.feedback;
+//     candidate.remark = req.body.remark || candidate.remark;
+//     candidate.company = req.body.company || candidate.company;
+//     candidate.voiceNonVoice = req.body.voiceNonVoice || candidate.voiceNonVoice;
+//     candidate.source = req.body.source || candidate.source;
+
+//     if (isAssignProcessChanged) {
+//       // If assignProcess is changed
+//       console.log("AssignProcess changed");
+//       const [clientName, processName, processLanguage] =
+//         newAssignProcess.split(" - ");
+
+//       const client = await ClientSheet.findOne({
+//         clientName,
+//         "clientProcess.clientProcessName": processName,
+//         "clientProcess.clientProcessLanguage": processLanguage,
+//       });
+
+//       if (client) {
+//         const process = client.clientProcess.find(
+//           (p) =>
+//             p.clientProcessName === processName &&
+//             p.clientProcessLanguage === processLanguage
+//         );
+
+//         const newCandidate = {
+//           candidateId: candidate._id,
+//           name: candidate.name,
+//           email: candidate.email,
+//           phone: candidate.phone,
+//           language: candidate.language,
+//           jbStatus: candidate.jbStatus,
+//           qualification: candidate.qualification,
+//           industry: candidate.industry,
+//           domain: candidate.domain,
+//           exp: candidate.exp,
+//           cLocation: candidate.cLocation,
+//           pLocation: candidate.pLocation,
+//           currentCTC: candidate.currentCTC,
+//           expectedCTC: candidate.expectedCTC,
+//           noticePeriod: candidate.noticePeriod,
+//           wfh: candidate.wfh,
+//           resumeLink: candidate.resumeLink,
+//           linkedinLink: candidate.linkedinLink,
+//           feedback: candidate.feedback,
+//           remark: candidate.remark,
+//           company: candidate.company,
+//           voiceNonVoice: candidate.voiceNonVoice,
+//           source: candidate.source,
+//           interested: candidate.interested,
+//           isProcessAssigned: true,
+//         };
+
+//         process.interestedCandidates.push(newCandidate);
+
+//         candidate.assignProcess = null; // Reset the assignProcess in MasterSheet
+//         candidate.isProcessAssigned = true;
+
+//         await client.save();
+//         await candidate.save();
+
+//         return res.status(200).json({
+//           message:
+//             "Candidate added to interestedCandidates and updated in MasterSheet",
+//         });
+//       } else {
+//         return res.status(404).json({ message: "Client or process not found" });
+//       }
+//     } else {
+//       // If assignProcess is not changed, update all copies in interestedCandidates[]
+//       const clients = await ClientSheet.find({
+//         "clientProcess.interestedCandidates.candidateId": candidate._id,
+//       });
+
+//       for (const client of clients) {
+//         for (const process of client.clientProcess) {
+//           const interestedCandidate = process.interestedCandidates.find(
+//             (c) => c.candidateId.toString() === candidate._id.toString()
+//           );
+
+//           if (interestedCandidate) {
+//             interestedCandidate.name = candidate.name;
+//             interestedCandidate.email = candidate.email;
+//             interestedCandidate.phone = candidate.phone;
+//             interestedCandidate.status = candidate.status;
+//             interestedCandidate.language = candidate.language;
+//             interestedCandidate.jbStatus = candidate.jbStatus;
+//             interestedCandidate.qualification = candidate.qualification;
+//             interestedCandidate.industry = candidate.industry;
+//             interestedCandidate.domain = candidate.domain;
+//             interestedCandidate.exp = candidate.exp;
+//             interestedCandidate.cLocation = candidate.cLocation;
+//             interestedCandidate.pLocation = candidate.pLocation;
+//             interestedCandidate.currentCTC = candidate.currentCTC;
+//             interestedCandidate.expectedCTC = candidate.expectedCTC;
+//             interestedCandidate.noticePeriod = candidate.noticePeriod;
+//             interestedCandidate.wfh = candidate.wfh;
+//             interestedCandidate.resumeLink = candidate.resumeLink;
+//             interestedCandidate.linkedinLink = candidate.linkedinLink;
+//             interestedCandidate.feedback = candidate.feedback;
+//             interestedCandidate.remark = candidate.remark;
+//             interestedCandidate.company = candidate.company;
+//             interestedCandidate.voiceNonVoice = candidate.voiceNonVoice;
+//             interestedCandidate.source = candidate.source;
+//           }
+//         }
+//         await client.save();
+//       }
+
+//       await candidate.save();
+//       return res.status(200).json({
+//         message: "Candidate updated in MasterSheet and all duplicate copies",
+//       });
+//     }
+//   } catch (err) {
+//     console.log("in the catch box");
+//     res.status(500).json({ message: err.message });
+//   }
+// });
 
 // Updating (POST) and shifting MULTIPLE candidates to intCandidate[] of the process (just assignedRecruiter option)
 router.post("/candidates/assign-process", async (req, res) => {
