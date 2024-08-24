@@ -444,6 +444,380 @@ router.put("/candidates/:id", async (req, res) => {
   }
 });
 
+
+
+// Updating (POST) and shifting MULTIPLE candidates to intCandidate[] of the process (just assignedRecruiter option)
+router.post("/candidates/assign-process", async (req, res) => {
+  try {
+    const { ids, newAssignProcess } = req.body;
+
+    // Split the newAssignProcess to get client and process details
+    const [clientName, processName, processLanguage] =
+      newAssignProcess.split(" - ");
+
+    // Fetch the client and process
+    const client = await ClientSheet.findOne({
+      clientName,
+      "clientProcess.clientProcessName": processName,
+      "clientProcess.clientProcessLanguage": processLanguage,
+    });
+
+    if (!client) {
+      return res.status(404).json({ message: "Client or process not found" });
+    }
+
+    // Find candidates by IDs
+    const candidates = await Mastersheet.find({ _id: { $in: ids } });
+
+    let duplicateCandidates = [];
+
+    for (let candidate of candidates) {
+      // Create a new candidate object
+      const newCandidate = {
+        candidateId: candidate._id,
+        name: candidate.name,
+        email: candidate.email,
+        phone: candidate.phone,
+        language: candidate.language,
+        jbStatus: candidate.jbStatus,
+        qualification: candidate.qualification,
+        industry: candidate.industry,
+        domain: candidate.domain,
+        exp: candidate.exp,
+        cLocation: candidate.cLocation,
+        pLocation: candidate.pLocation,
+        currentCTC: candidate.currentCTC,
+        expectedCTC: candidate.expectedCTC,
+        noticePeriod: candidate.noticePeriod,
+        wfh: candidate.wfh,
+        resumeLink: candidate.resumeLink,
+        linkedinLink: candidate.linkedinLink,
+        feedback: candidate.feedback,
+        remark: candidate.remark,
+        company: candidate.company,
+        voiceNonVoice: candidate.voiceNonVoice,
+        source: candidate.source,
+        interested: candidate.interested,
+        status: candidate.status,
+        isProcessAssigned: true, // Set isProcessAssigned to true
+      };
+
+      console.log(
+        "Candidate in the masterSheet after assigning process is: " +
+          newCandidate
+      );
+
+      // Find the process
+      const process = client.clientProcess.find(
+        (p) =>
+          p.clientProcessName === processName &&
+          p.clientProcessLanguage === processLanguage
+      );
+
+      // Check if the candidate is already in the interestedCandidates array
+      const isDuplicate = process.interestedCandidates.some(
+        (c) => c.candidateId.toString() === candidate._id.toString()
+      );
+
+      if (!isDuplicate) {
+        // Add new candidate to the process
+        process.interestedCandidates.push(newCandidate);
+
+        // Update candidate in the MasterSheet
+        candidate.assignProcess = null;
+        candidate.isProcessAssigned = true; // Set isProcessAssigned to true in MasterSheet
+
+        await candidate.save();
+      } else {
+        // Add to duplicate candidates list
+        duplicateCandidates.push(candidate._id.toString());
+      }
+    }
+
+    // Save the updated client process
+    await client.save();
+
+    if (duplicateCandidates.length > 0) {
+      res.status(200).json({
+        message:
+          "Some candidates were not added because they are already assigned to this process",
+        duplicateCandidates,
+      });
+    } else {
+      res
+        .status(200)
+        .json({ message: "Candidates assigned to process successfully" });
+    }
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+
+// import -> without duplicates (email and phone no)
+// router.post("/candidate/import", async (req, res) => {
+//   try {
+//     const candidates = req.body.data;
+
+//     // Validate data structure
+//     if (!Array.isArray(candidates)) {
+//       return res.status(400).json({ message: "Data should be an array" });
+//     }
+
+//     // const normalizePhone = (phone) => typeof phone === 'number' ? String(phone).replace(/[\s\-]/g, '') : '';
+
+//     // trim to avoid leading and trailing spaces
+//     // const normalizePhone = (phone) =>
+//     //   typeof phone === 'string' ? phone.trim().replace(/[\s\-]/g, '') : 
+//     //   typeof phone === 'number' ? String(phone).trim().replace(/[\s\-]/g, '') : '';
+
+    
+//     // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to only those which has it)
+//     const normalizePhone = (phone) => {
+//       if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+    
+//       let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+    
+//       // Trim leading and trailing spaces
+//       normalizedPhone = normalizedPhone.trim();
+    
+//       // Check if the number starts with a '+', indicating it has a country code
+//       const hasPlus = normalizedPhone.startsWith('+');
+    
+//       // Remove internal spaces and dashes
+//       normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+    
+//       // If it originally had a '+', retain it; otherwise, leave the number as is
+//       if (hasPlus) {
+//         return normalizedPhone;
+//       } else {
+//         // If there’s no leading '+', return the number without altering it
+//         return normalizedPhone.replace(/^\+/, ''); // Just a precaution in case a "+" is present accidentally
+//       }
+//     };
+    
+
+//     // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to every field)
+//     // const normalizePhone = (phone) => {
+//     //   if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+    
+//     //   let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+    
+//     //   // Trim leading and trailing spaces
+//     //   normalizedPhone = normalizedPhone.trim();
+    
+//     //   // Detect if the number starts with a country code (e.g., +91 or 91)
+//     //   const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+    
+//     //   // Remove internal spaces and dashes
+//     //   normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+    
+//     //   // If there's a country code (with or without a leading +), ensure it's formatted as +<country code>
+//     //   if (hasCountryCode) {
+//     //     const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+//     //     normalizedPhone = `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+//     //   }
+    
+//     //   return normalizedPhone;
+//     // };
+    
+
+//     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+    
+
+
+//     // Skip the first row if it's a header
+//     const filteredCandidates = candidates.slice(1).map((candidate) => {
+//       const phone = normalizePhone(candidate[2]);
+//       const email = normalizeEmail(candidate[1]);
+
+//       const languages = [];
+//       if (candidate[3] || candidate[4] || candidate[5]) {
+//         const lTypes = candidate[3] ? candidate[3].split(',').map(item => item.trim()) : [null];
+//         const langs = candidate[4] ? candidate[4].split(',').map(item => item.trim()) : [null];
+//         const proficiencyLevels = candidate[5] ? candidate[5].split(',').map(item => item.trim()) : [null];
+
+//         for (let i = 0; i < Math.max(lTypes.length, langs.length, proficiencyLevels.length); i++) {
+//           languages.push({
+//             lType: lTypes[i] || null,
+//             lang: langs[i] || null,
+//             proficiencyLevel: proficiencyLevels[i] || null
+//           });
+//         }
+//       }
+
+//       return {
+//         name: candidate[0],
+//         email: email,
+//         phone: phone,
+//         language: languages,
+//         status: null,
+//         assignProcess: null,
+//         isProcessAssigned: false,
+//         interested: null,
+//         assignedRecruiter: null,
+//         jbStatus: candidate[6],
+//         qualification: candidate[7],
+//         industry: candidate[8],
+//         exp: candidate[9],
+//         domain: candidate[10],
+//         cLocation: candidate[11],
+//         pLocation: candidate[12],
+//         currentCTC: Number(candidate[13]) || 0,
+//         expectedCTC: Number(candidate[14]) || 0,
+//         noticePeriod: candidate[15],
+//         wfh: candidate[16],
+//         resumeLink: candidate[17],
+//         linkedinLink: candidate[18],
+//         feedback: candidate[19],
+//         remark: candidate[20],
+//         company: candidate[21],
+//         voiceNonVoice: candidate[22],
+//         source: candidate[23],
+//       };
+//     });
+
+//     const emails = filteredCandidates.map(candidate => candidate.email).filter(email => email !== null && email !== undefined);
+//     const phoneNumbers = filteredCandidates.map(candidate => candidate.phone);
+
+//     // Find existing candidates by normalized email or phone number
+//     const existingCandidates = await Mastersheet.find({
+//       $or: [
+//         { email: { $in: emails } },
+//         { phone: { $in: phoneNumbers } }
+//       ]
+//     });
+
+//     const existingEmails = new Set(existingCandidates.map(c => normalizeEmail(c.email)));
+//     const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
+
+//     // Filter out duplicates based on phone numbers; allow null/undefined emails
+//     const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
+//       candidate.phone && 
+//       !existingPhoneNumbers.has(candidate.phone)
+//     );
+
+//     // Insert non-duplicate candidates
+//     const result = await Mastersheet.insertMany(nonDuplicateCandidates);
+
+//     res.status(201).json({ message: "Data imported successfully", result });
+//   } catch (err) {
+//     console.error("Error saving the candidates:", err);
+//     res.status(500).json({ message: "Failed to create candidates", error: err.message });
+//   }
+// });
+router.post("/candidate/import", async (req, res) => {
+  try {
+    const candidates = req.body.data;
+
+    // Validate data structure
+    if (!Array.isArray(candidates)) {
+      return res.status(400).json({ message: "Data should be an array" });
+    }
+
+    const normalizePhone = (phone) => {
+      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+      normalizedPhone = normalizedPhone.trim().replace(/[\s\-]/g, '');
+      return normalizedPhone.startsWith('+') ? normalizedPhone : normalizedPhone.replace(/^\+/, '');
+    };
+
+    const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+
+    // Skip the first row if it's a header
+    const filteredCandidates = candidates.slice(1).map((candidate) => {
+      const phone = normalizePhone(candidate[2]);
+      const email = normalizeEmail(candidate[1]);
+
+      // Process language information
+      const languages = [];
+      if (candidate[3] || candidate[4] || candidate[5]) {
+        const lTypes = candidate[3] ? candidate[3].split(',').map(item => item.trim()) : [null];
+        const langs = candidate[4] ? candidate[4].split(',').map(item => item.trim()) : [null];
+        const proficiencyLevels = candidate[5] ? candidate[5].split(',').map(item => item.trim()) : [null];
+
+        for (let i = 0; i < Math.max(lTypes.length, langs.length, proficiencyLevels.length); i++) {
+          languages.push({
+            lType: lTypes[i] || null,
+            lang: langs[i] || null,
+            proficiencyLevel: proficiencyLevels[i] || null
+          });
+        }
+      }
+
+      return {
+        name: candidate[0],
+        email: email,
+        phone: phone,
+        language: languages,
+        status: null,
+        assignProcess: null,
+        isProcessAssigned: false,
+        interested: null,
+        assignedRecruiter: null,
+        jbStatus: candidate[6],
+        qualification: candidate[7],
+        industry: candidate[8],
+        exp: candidate[9],
+        domain: candidate[10],
+        cLocation: candidate[11],
+        pLocation: candidate[12],
+        currentCTC: Number(candidate[13]) || 0,
+        expectedCTC: Number(candidate[14]) || 0,
+        noticePeriod: candidate[15],
+        wfh: candidate[16],
+        resumeLink: candidate[17],
+        linkedinLink: candidate[18],
+        feedback: candidate[19],
+        remark: candidate[20],
+        company: candidate[21],
+        voiceNonVoice: candidate[22],
+        source: candidate[23],
+      };
+    });
+
+    const emails = filteredCandidates.map(candidate => candidate.email).filter(email => email !== null && email !== undefined);
+    const phoneNumbers = filteredCandidates.map(candidate => candidate.phone);
+
+    // Find existing candidates by normalized email or phone number
+    const existingCandidates = await Mastersheet.find({
+      $or: [
+        { email: { $in: emails } },
+        { phone: { $in: phoneNumbers } }
+      ]
+    });
+
+    const existingEmails = new Set(existingCandidates.map(c => normalizeEmail(c.email)));
+    const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
+
+    // Filter out duplicates based on phone numbers; allow null/undefined emails
+    const duplicates = [];
+    const nonDuplicateCandidates = filteredCandidates.filter(candidate => {
+      if (candidate.phone && existingPhoneNumbers.has(candidate.phone)) {
+        // Collect duplicates for logging
+        duplicates.push(candidate);
+        return false; // Skip duplicates
+      }
+      return true;
+    });
+
+    // Log duplicates
+    console.log("Duplicate candidates based on phone numbers:", duplicates);
+
+    // Insert non-duplicate candidates
+    const result = await Mastersheet.insertMany(nonDuplicateCandidates);
+
+    res.status(201).json({ message: "Data imported successfully", result });
+  } catch (err) {
+    console.error("Error saving the candidates:", err);
+    res.status(500).json({ message: "Failed to create candidates", error: err.message });
+  }
+});
+
+
+export default router;
+
+
 // router.put("/candidates/:id", async (req, res) => {
 //   try {
 //     const candidate = await Mastersheet.findById(req.params.id);
@@ -596,268 +970,6 @@ router.put("/candidates/:id", async (req, res) => {
 //     res.status(500).json({ message: err.message });
 //   }
 // });
-
-// Updating (POST) and shifting MULTIPLE candidates to intCandidate[] of the process (just assignedRecruiter option)
-router.post("/candidates/assign-process", async (req, res) => {
-  try {
-    const { ids, newAssignProcess } = req.body;
-
-    // Split the newAssignProcess to get client and process details
-    const [clientName, processName, processLanguage] =
-      newAssignProcess.split(" - ");
-
-    // Fetch the client and process
-    const client = await ClientSheet.findOne({
-      clientName,
-      "clientProcess.clientProcessName": processName,
-      "clientProcess.clientProcessLanguage": processLanguage,
-    });
-
-    if (!client) {
-      return res.status(404).json({ message: "Client or process not found" });
-    }
-
-    // Find candidates by IDs
-    const candidates = await Mastersheet.find({ _id: { $in: ids } });
-
-    let duplicateCandidates = [];
-
-    for (let candidate of candidates) {
-      // Create a new candidate object
-      const newCandidate = {
-        candidateId: candidate._id,
-        name: candidate.name,
-        email: candidate.email,
-        phone: candidate.phone,
-        language: candidate.language,
-        jbStatus: candidate.jbStatus,
-        qualification: candidate.qualification,
-        industry: candidate.industry,
-        domain: candidate.domain,
-        exp: candidate.exp,
-        cLocation: candidate.cLocation,
-        pLocation: candidate.pLocation,
-        currentCTC: candidate.currentCTC,
-        expectedCTC: candidate.expectedCTC,
-        noticePeriod: candidate.noticePeriod,
-        wfh: candidate.wfh,
-        resumeLink: candidate.resumeLink,
-        linkedinLink: candidate.linkedinLink,
-        feedback: candidate.feedback,
-        remark: candidate.remark,
-        company: candidate.company,
-        voiceNonVoice: candidate.voiceNonVoice,
-        source: candidate.source,
-        interested: candidate.interested,
-        status: candidate.status,
-        isProcessAssigned: true, // Set isProcessAssigned to true
-      };
-
-      console.log(
-        "Candidate in the masterSheet after assigning process is: " +
-          newCandidate
-      );
-
-      // Find the process
-      const process = client.clientProcess.find(
-        (p) =>
-          p.clientProcessName === processName &&
-          p.clientProcessLanguage === processLanguage
-      );
-
-      // Check if the candidate is already in the interestedCandidates array
-      const isDuplicate = process.interestedCandidates.some(
-        (c) => c.candidateId.toString() === candidate._id.toString()
-      );
-
-      if (!isDuplicate) {
-        // Add new candidate to the process
-        process.interestedCandidates.push(newCandidate);
-
-        // Update candidate in the MasterSheet
-        candidate.assignProcess = null;
-        candidate.isProcessAssigned = true; // Set isProcessAssigned to true in MasterSheet
-
-        await candidate.save();
-      } else {
-        // Add to duplicate candidates list
-        duplicateCandidates.push(candidate._id.toString());
-      }
-    }
-
-    // Save the updated client process
-    await client.save();
-
-    if (duplicateCandidates.length > 0) {
-      res.status(200).json({
-        message:
-          "Some candidates were not added because they are already assigned to this process",
-        duplicateCandidates,
-      });
-    } else {
-      res
-        .status(200)
-        .json({ message: "Candidates assigned to process successfully" });
-    }
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-
-
-// import -> without duplicates (email and phone no)
-router.post("/candidate/import", async (req, res) => {
-  try {
-    const candidates = req.body.data;
-
-    // Validate data structure
-    if (!Array.isArray(candidates)) {
-      return res.status(400).json({ message: "Data should be an array" });
-    }
-
-    // const normalizePhone = (phone) => typeof phone === 'number' ? String(phone).replace(/[\s\-]/g, '') : '';
-
-    // trim to avoid leading and trailing spaces
-    // const normalizePhone = (phone) =>
-    //   typeof phone === 'string' ? phone.trim().replace(/[\s\-]/g, '') : 
-    //   typeof phone === 'number' ? String(phone).trim().replace(/[\s\-]/g, '') : '';
-
-    
-    // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to only those which has it)
-    const normalizePhone = (phone) => {
-      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
-    
-      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
-    
-      // Trim leading and trailing spaces
-      normalizedPhone = normalizedPhone.trim();
-    
-      // Check if the number starts with a '+', indicating it has a country code
-      const hasPlus = normalizedPhone.startsWith('+');
-    
-      // Remove internal spaces and dashes
-      normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
-    
-      // If it originally had a '+', retain it; otherwise, leave the number as is
-      if (hasPlus) {
-        return normalizedPhone;
-      } else {
-        // If there’s no leading '+', return the number without altering it
-        return normalizedPhone.replace(/^\+/, ''); // Just a precaution in case a "+" is present accidentally
-      }
-    };
-    
-
-    // trim to avoid leading and trailing spaces as well as COUNTRY CODE (adding + to every field)
-    // const normalizePhone = (phone) => {
-    //   if (typeof phone !== 'string' && typeof phone !== 'number') return '';
-    
-    //   let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
-    
-    //   // Trim leading and trailing spaces
-    //   normalizedPhone = normalizedPhone.trim();
-    
-    //   // Detect if the number starts with a country code (e.g., +91 or 91)
-    //   const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
-    
-    //   // Remove internal spaces and dashes
-    //   normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
-    
-    //   // If there's a country code (with or without a leading +), ensure it's formatted as +<country code>
-    //   if (hasCountryCode) {
-    //     const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
-    //     normalizedPhone = `+${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
-    //   }
-    
-    //   return normalizedPhone;
-    // };
-    
-
-    const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
-    
-
-
-    // Skip the first row if it's a header
-    const filteredCandidates = candidates.slice(1).map((candidate) => {
-      const phone = normalizePhone(candidate[2]);
-      const email = normalizeEmail(candidate[1]);
-
-      const languages = [];
-      if (candidate[3] || candidate[4] || candidate[5]) {
-        const lTypes = candidate[3] ? candidate[3].split(',').map(item => item.trim()) : [null];
-        const langs = candidate[4] ? candidate[4].split(',').map(item => item.trim()) : [null];
-        const proficiencyLevels = candidate[5] ? candidate[5].split(',').map(item => item.trim()) : [null];
-
-        for (let i = 0; i < Math.max(lTypes.length, langs.length, proficiencyLevels.length); i++) {
-          languages.push({
-            lType: lTypes[i] || null,
-            lang: langs[i] || null,
-            proficiencyLevel: proficiencyLevels[i] || null
-          });
-        }
-      }
-
-      return {
-        name: candidate[0],
-        email: email,
-        phone: phone,
-        language: languages,
-        status: null,
-        assignProcess: null,
-        isProcessAssigned: false,
-        interested: null,
-        assignedRecruiter: null,
-        jbStatus: candidate[6],
-        qualification: candidate[7],
-        industry: candidate[8],
-        exp: candidate[9],
-        domain: candidate[10],
-        cLocation: candidate[11],
-        pLocation: candidate[12],
-        currentCTC: Number(candidate[13]) || 0,
-        expectedCTC: Number(candidate[14]) || 0,
-        noticePeriod: candidate[15],
-        wfh: candidate[16],
-        resumeLink: candidate[17],
-        linkedinLink: candidate[18],
-        feedback: candidate[19],
-        remark: candidate[20],
-        company: candidate[21],
-        voiceNonVoice: candidate[22],
-        source: candidate[23],
-      };
-    });
-
-    const emails = filteredCandidates.map(candidate => candidate.email).filter(email => email !== null && email !== undefined);
-    const phoneNumbers = filteredCandidates.map(candidate => candidate.phone);
-
-    // Find existing candidates by normalized email or phone number
-    const existingCandidates = await Mastersheet.find({
-      $or: [
-        { email: { $in: emails } },
-        { phone: { $in: phoneNumbers } }
-      ]
-    });
-
-    const existingEmails = new Set(existingCandidates.map(c => normalizeEmail(c.email)));
-    const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
-
-    // Filter out duplicates based on phone numbers; allow null/undefined emails
-    const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
-      candidate.phone && 
-      !existingPhoneNumbers.has(candidate.phone)
-    );
-
-    // Insert non-duplicate candidates
-    const result = await Mastersheet.insertMany(nonDuplicateCandidates);
-
-    res.status(201).json({ message: "Data imported successfully", result });
-  } catch (err) {
-    console.error("Error saving the candidates:", err);
-    res.status(500).json({ message: "Failed to create candidates", error: err.message });
-  }
-});
 
 
 // working router.post("/candidate/import", async (req, res) => {
@@ -1603,4 +1715,4 @@ router.post("/candidate/import", async (req, res) => {
 
 
 
-export default router;
+
