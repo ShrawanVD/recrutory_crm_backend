@@ -692,18 +692,10 @@ router.post("/candidate/import", async (req, res) => {
     const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
 
     // Filter out duplicates based on phone numbers; allow null/undefined emails
-    // const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
-    //   candidate.phone && 
-    //   !existingPhoneNumbers.has(candidate.phone)
-    // );
-
-    const nonDuplicateCandidates = filteredCandidates.filter(candidate => {
-      if (candidate.phone && existingPhoneNumbers.has(candidate.phone)) {
-        console.log("Duplicate phone number:", candidate.phone); // Log the duplicate phone number
-        return false; // Skip this candidate
-      }
-      return true; // Keep the candidate
-    });
+    const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
+      candidate.phone && 
+      !existingPhoneNumbers.has(candidate.phone)
+    );
     
 
     // Insert non-duplicate candidates
