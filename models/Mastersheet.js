@@ -36,6 +36,8 @@ const MasterSheetSchema = new Schema({
   company: { type: String },
   voiceNonVoice: { type: String },
   source: { type: String },
+  createdBy: { type: String },
+  lastUpdatedBy: { type: String }
 });
 
 const Mastersheet = mongoose.model('Mastersheet', MasterSheetSchema);
