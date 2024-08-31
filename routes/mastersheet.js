@@ -2,98 +2,241 @@ import express from "express";
 import "dotenv/config.js";
 import Mastersheet from "../models/Mastersheet.js";
 import ClientSheet from "../models/Client.js";
+// const jwt = require('jsonwebtoken');
+import jwt from "jsonwebtoken"
+const secretKey = "secretKey";
+
 
 const router = express.Router();
 
+
+
+
+// Candidate update route -> dosent have assign process logic so kept it for future ref.
+// router.put("/candidates/:id", verifyToken, async (req, res) => {
+//   jwt.verify(req.token, secretKey, async (err, authData) => {
+//     if (err) {
+//       return res.status(403).json({ message: "Forbidden: Invalid token" });
+//     }
+
+//     const lastUpdatedBy = authData.username;
+
+//     try {
+//       const candidate = await Mastersheet.findById(req.params.id);
+//       if (!candidate) {
+//         return res.status(404).json({ message: "Candidate not found" });
+//       }
+
+//       // retain the created by value
+//       const createdBy = candidate.createdBy;
+
+//       const normalizePhone = (phone) => {
+//         if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+
+//         let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+//         normalizedPhone = normalizedPhone.trim().replace(/[\s\-]/g, '');
+
+//         const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+//         if (hasCountryCode) {
+//           const countryCode = hasCountryCode[1].replace(/^\+/, '');
+//           return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+//         }
+//         return normalizedPhone;
+//       };
+
+//       const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
+
+//       const normalizedPhone = normalizePhone(req.body.phone);
+//       const existingCandidate = await Mastersheet.findOne({
+//         phone: normalizedPhone,
+//         _id: { $ne: req.params.id },
+//       });
+
+//       if (existingCandidate) {
+//         return res.status(400).json({ message: "Candidate with this phone number already exists." });
+//       }
+
+//       // Update candidate details
+//       Object.assign(candidate, {
+//         ...req.body,
+//         phone: normalizedPhone,
+//         email: normalizeEmail(req.body.email),
+//         createdBy,
+//         lastUpdatedBy,
+//       });
+
+//       await candidate.save();
+//       res.status(200).json({ message: "Candidate updated successfully", candidate });
+//     } catch (err) {
+//       console.error("Error updating the Candidate:", err);
+//       res.status(500).json({ message: err.message });
+//     }
+//   });
+// });
+
+
+
+
+// // Create a new candidate
+// router.post("/candidates", async (req, res) => {
+//   try {
+//     // Normalize phone number (trim spaces, handle country codes, remove internal spaces/dashes)
+//     const normalizePhone = (phone) => {
+//       if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+
+//       let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+
+//       // Trim leading and trailing spaces
+//       normalizedPhone = normalizedPhone.trim();
+
+//       // Detect and handle the presence of country codes (with or without a '+')
+//       const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+
+//       // Remove internal spaces and dashes
+//       normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+
+//       // If a country code is detected, keep it intact
+//       if (hasCountryCode) {
+//         const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+//         return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+//       }
+
+//       // Return the normalized phone number without adding a country code
+//       return normalizedPhone;
+//     };
+
+//     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+
+//     // Normalize the phone number before checking for duplicates
+//     const phone = normalizePhone(req.body.phone);
+
+//     // Check if a candidate with the same normalized phone number already exists
+//     const existingCandidate = await Mastersheet.findOne({ phone });
+
+//     if (existingCandidate) {
+//       return res
+//         .status(400)
+//         .json({ message: "Candidate with this phone number already exists." });
+//     }
+
+//     // Create a new candidate if no duplicates are found
+//     const candidate = new Mastersheet({
+//       name: req.body.name,
+//       email: normalizeEmail(req.body.email),
+//       phone: phone,
+//       status: req.body.status || null,
+//       assignProcess: req.body.assignProcess || null,
+//       interested: req.body.interested || null,
+//       assignedRecruiter: req.body.assignedRecruiter || null,
+//       language: req.body.language,
+//       jbStatus: req.body.jbStatus,
+//       qualification: req.body.qualification,
+//       industry: req.body.industry,
+//       domain: req.body.domain,
+//       exp: req.body.exp,
+//       cLocation: req.body.cLocation,
+//       pLocation: req.body.pLocation,
+//       currentCTC: req.body.currentCTC,
+//       expectedCTC: req.body.expectedCTC,
+//       noticePeriod: req.body.noticePeriod,
+//       wfh: req.body.wfh,
+//       resumeLink: req.body.resumeLink,
+//       linkedinLink: req.body.linkedinLink,
+//       feedback: req.body.feedback,
+//       remark: req.body.remark,
+//       company: req.body.company,
+//       voiceNonVoice: req.body.voiceNonVoice,
+//       source: req.body.source,
+//       createdBy: createdBy,
+//     });
+
+//     const newCandidate = await candidate.save();
+//     console.log("New Candidate is: " + newCandidate);
+//     res.status(201).json(newCandidate);
+//   } catch (err) {
+//     console.error("Error saving the Candidate:", err);
+//     res
+//       .status(500)
+//       .json({ message: "Failed to create candidate", error: err.message });
+//   }
+// });
+
+
+
+
 // checking api
+
+
 router.get("/", (req, res) => {
   res.status(200).send({
     msg: "Mastersheet's APIs are working successfully",
   });
 });
 
-// Create a new candidate
-router.post("/candidates", async (req, res) => {
-  try {
-    // Normalize phone number (trim spaces, handle country codes, remove internal spaces/dashes)
-    const normalizePhone = (phone) => {
-      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+// Middleware for verifying the token
+function verifyToken(req, res, next) {
+  const bearerHeader = req.headers["authorization"];
+  if (typeof bearerHeader !== "undefined") {
+    const bearer = bearerHeader.split(" ");
+    const token = bearer[1];
+    req.token = token;
+    next();
+  } else {
+    res.status(403).json({ message: "Forbidden: Invalid login" });
+  }
+}
 
-      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
-
-      // Trim leading and trailing spaces
-      normalizedPhone = normalizedPhone.trim();
-
-      // Detect and handle the presence of country codes (with or without a '+')
-      const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
-
-      // Remove internal spaces and dashes
-      normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
-
-      // If a country code is detected, keep it intact
-      if (hasCountryCode) {
-        const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
-        return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
-      }
-
-      // Return the normalized phone number without adding a country code
-      return normalizedPhone;
-    };
-
-    const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
-
-    // Normalize the phone number before checking for duplicates
-    const phone = normalizePhone(req.body.phone);
-
-    // Check if a candidate with the same normalized phone number already exists
-    const existingCandidate = await Mastersheet.findOne({ phone });
-
-    if (existingCandidate) {
-      return res
-        .status(400)
-        .json({ message: "Candidate with this phone number already exists." });
+// Candidate creation route
+router.post("/candidates", verifyToken, async (req, res) => {
+  jwt.verify(req.token, secretKey, async (err, authData) => {
+    if (err) {
+      return res.status(403).json({ message: "Forbidden: Invalid token" });
     }
 
-    // Create a new candidate if no duplicates are found
-    const candidate = new Mastersheet({
-      name: req.body.name,
-      email: normalizeEmail(req.body.email),
-      phone: phone,
-      status: req.body.status || null,
-      assignProcess: req.body.assignProcess || null,
-      interested: req.body.interested || null,
-      assignedRecruiter: req.body.assignedRecruiter || null,
-      language: req.body.language,
-      jbStatus: req.body.jbStatus,
-      qualification: req.body.qualification,
-      industry: req.body.industry,
-      domain: req.body.domain,
-      exp: req.body.exp,
-      cLocation: req.body.cLocation,
-      pLocation: req.body.pLocation,
-      currentCTC: req.body.currentCTC,
-      expectedCTC: req.body.expectedCTC,
-      noticePeriod: req.body.noticePeriod,
-      wfh: req.body.wfh,
-      resumeLink: req.body.resumeLink,
-      linkedinLink: req.body.linkedinLink,
-      feedback: req.body.feedback,
-      remark: req.body.remark,
-      company: req.body.company,
-      voiceNonVoice: req.body.voiceNonVoice,
-      source: req.body.source,
-    });
+    const createdBy = authData.username;
+    console.log("created by in the candidate create function is: " + createdBy);
 
-    const newCandidate = await candidate.save();
-    console.log("New Candidate is: " + newCandidate);
-    res.status(201).json(newCandidate);
-  } catch (err) {
-    console.error("Error saving the Candidate:", err);
-    res
-      .status(500)
-      .json({ message: "Failed to create candidate", error: err.message });
-  }
+    try {
+      // Normalize phone number (trim spaces, handle country codes, remove internal spaces/dashes)
+      const normalizePhone = (phone) => {
+        if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+
+        let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+        normalizedPhone = normalizedPhone.trim().replace(/[\s\-]/g, '');
+
+        const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+        if (hasCountryCode) {
+          const countryCode = hasCountryCode[1].replace(/^\+/, '');
+          return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+        }
+        return normalizedPhone;
+      };
+
+      const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
+
+      const phone = normalizePhone(req.body.phone);
+      const existingCandidate = await Mastersheet.findOne({ phone });
+
+      if (existingCandidate) {
+        return res.status(400).json({ message: "Candidate with this phone number already exists." });
+      }
+
+      const candidate = new Mastersheet({
+        ...req.body,
+        phone,
+        email: normalizeEmail(req.body.email),
+        createdBy,
+      });
+
+      const newCandidate = await candidate.save();
+      res.status(201).json(newCandidate);
+    } catch (err) {
+      console.error("Error saving the Candidate:", err);
+      res.status(500).json({ message: "Failed to create candidate", error: err.message });
+    }
+  });
 });
+
 
 // router.post("/candidates", async (req, res) => {
 //   try {
@@ -253,195 +396,214 @@ router.delete("/candidates/:id", async (req, res) => {
 
 // PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
 // PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
-router.put("/candidates/:id", async (req, res) => {
-  try {
-    const candidate = await Mastersheet.findById(req.params.id);
-    if (!candidate) {
-      return res.status(404).json({ message: "Candidate not found" });
+router.put("/candidates/:id", verifyToken, async (req, res) => {
+  jwt.verify(req.token, secretKey, async (err, authData) => {
+
+    if(err){
+      return res.status(403).json({message:"Forbidden: Invalid Token"});
     }
+    const lastUpdatedBy = authData.username;
 
-    // Normalize phone number
-    const normalizePhone = (phone) => {
-      if (typeof phone !== 'string' && typeof phone !== 'number') return '';
-
-      let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
-
-      // Trim leading and trailing spaces
-      normalizedPhone = normalizedPhone.trim();
-
-      // Detect and handle the presence of country codes (with or without a '+')
-      const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
-
-      // Remove internal spaces and dashes
-      normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
-
-      // If a country code is detected, keep it intact
-      if (hasCountryCode) {
-        const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
-        return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
+    try {
+      const candidate = await Mastersheet.findById(req.params.id);
+      if (!candidate) {
+        return res.status(404).json({ message: "Candidate not found" });
       }
-
-      // Return the normalized phone number without adding a country code
-      return normalizedPhone;
-    };
-
-    const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
-
-    // Normalize the phone number before performing checks
-    const normalizedPhone = normalizePhone(req.body.phone);
-
-    // Check if any other candidate (excluding the current one) has the same normalized phone number
-    const existingCandidate = await Mastersheet.findOne({
-      phone: normalizedPhone,
-      _id: { $ne: req.params.id }, // Exclude the current candidate being edited
-    });
-
-    if (existingCandidate) {
-      return res.status(400).json({ message: "Candidate with this phone number already exists." });
-    }
-
-    // Continue with updating the candidate if no duplicates are found
-    const newAssignProcess = req.body.assignProcess || candidate.assignProcess;
-    const isAssignProcessChanged = newAssignProcess !== candidate.assignProcess;
-
-    // Updating candidate with new entries
-    candidate.name = req.body.name || candidate.name;
-    candidate.email = normalizeEmail(req.body.email) || candidate.email;
-    candidate.phone = normalizedPhone || candidate.phone;
-    candidate.status = req.body.status || candidate.status;
-    candidate.assignProcess = newAssignProcess;
-    candidate.interested = req.body.interested || candidate.interested;
-    candidate.assignedRecruiter = req.body.assignedRecruiter || candidate.assignedRecruiter;
-    candidate.language = req.body.language || candidate.language;
-    candidate.jbStatus = req.body.jbStatus || candidate.jbStatus;
-    candidate.qualification = req.body.qualification || candidate.qualification;
-    candidate.industry = req.body.industry || candidate.industry;
-    candidate.domain = req.body.domain || candidate.domain;
-    candidate.exp = req.body.exp || candidate.exp;
-    candidate.cLocation = req.body.cLocation || candidate.cLocation;
-    candidate.pLocation = req.body.pLocation || candidate.pLocation;
-    candidate.currentCTC = req.body.currentCTC || candidate.currentCTC;
-    candidate.expectedCTC = req.body.expectedCTC || candidate.expectedCTC;
-    candidate.noticePeriod = req.body.noticePeriod || candidate.noticePeriod;
-    candidate.wfh = req.body.wfh || candidate.wfh;
-    candidate.resumeLink = req.body.resumeLink || candidate.resumeLink;
-    candidate.linkedinLink = req.body.linkedinLink || candidate.linkedinLink;
-    candidate.feedback = req.body.feedback || candidate.feedback;
-    candidate.remark = req.body.remark || candidate.remark;
-    candidate.company = req.body.company || candidate.company;
-    candidate.voiceNonVoice = req.body.voiceNonVoice || candidate.voiceNonVoice;
-    candidate.source = req.body.source || candidate.source;
-
-    if (isAssignProcessChanged) {
-      // If assignProcess is changed
-      console.log("AssignProcess changed");
-      const [clientName, processName, processLanguage] = newAssignProcess.split(" - ");
-
-      const client = await ClientSheet.findOne({
-        clientName,
-        "clientProcess.clientProcessName": processName,
-        "clientProcess.clientProcessLanguage": processLanguage,
-      });
-
-      if (client) {
-        const process = client.clientProcess.find(
-          (p) =>
-            p.clientProcessName === processName &&
-            p.clientProcessLanguage === processLanguage
-        );
-
-        const newCandidate = {
-          candidateId: candidate._id,
-          name: candidate.name,
-          email: candidate.email,
-          phone: candidate.phone,
-          language: candidate.language,
-          jbStatus: candidate.jbStatus,
-          qualification: candidate.qualification,
-          industry: candidate.industry,
-          domain: candidate.domain,
-          exp: candidate.exp,
-          cLocation: candidate.cLocation,
-          pLocation: candidate.pLocation,
-          currentCTC: candidate.currentCTC,
-          expectedCTC: candidate.expectedCTC,
-          noticePeriod: candidate.noticePeriod,
-          wfh: candidate.wfh,
-          resumeLink: candidate.resumeLink,
-          linkedinLink: candidate.linkedinLink,
-          feedback: candidate.feedback,
-          remark: candidate.remark,
-          company: candidate.company,
-          voiceNonVoice: candidate.voiceNonVoice,
-          source: candidate.source,
-          interested: candidate.interested,
-          isProcessAssigned: true,
-        };
-
-        process.interestedCandidates.push(newCandidate);
-
-        candidate.assignProcess = null; // Reset the assignProcess in MasterSheet
-        candidate.isProcessAssigned = true;
-
-        await client.save();
-        await candidate.save();
-
-        return res.status(200).json({
-          message: "Candidate added to interestedCandidates and updated in MasterSheet",
-        });
-      } else {
-        return res.status(404).json({ message: "Client or process not found" });
-      }
-    } else {
-      // If assignProcess is not changed, update all copies in interestedCandidates[]
-      const clients = await ClientSheet.find({
-        "clientProcess.interestedCandidates.candidateId": candidate._id,
-      });
-
-      for (const client of clients) {
-        for (const process of client.clientProcess) {
-          const interestedCandidate = process.interestedCandidates.find(
-            (c) => c.candidateId.toString() === candidate._id.toString()
-          );
-
-          if (interestedCandidate) {
-            interestedCandidate.name = candidate.name;
-            interestedCandidate.email = candidate.email;
-            interestedCandidate.phone = candidate.phone;
-            interestedCandidate.status = candidate.status;
-            interestedCandidate.language = candidate.language;
-            interestedCandidate.jbStatus = candidate.jbStatus;
-            interestedCandidate.qualification = candidate.qualification;
-            interestedCandidate.industry = candidate.industry;
-            interestedCandidate.domain = candidate.domain;
-            interestedCandidate.exp = candidate.exp;
-            interestedCandidate.cLocation = candidate.cLocation;
-            interestedCandidate.pLocation = candidate.pLocation;
-            interestedCandidate.currentCTC = candidate.currentCTC;
-            interestedCandidate.expectedCTC = candidate.expectedCTC;
-            interestedCandidate.noticePeriod = candidate.noticePeriod;
-            interestedCandidate.wfh = candidate.wfh;
-            interestedCandidate.resumeLink = candidate.resumeLink;
-            interestedCandidate.linkedinLink = candidate.linkedinLink;
-            interestedCandidate.feedback = candidate.feedback;
-            interestedCandidate.remark = candidate.remark;
-            interestedCandidate.company = candidate.company;
-            interestedCandidate.voiceNonVoice = candidate.voiceNonVoice;
-            interestedCandidate.source = candidate.source;
-          }
+  
+      // retain the created by field
+      const createdBy = candidate.createdBy;
+  
+      // Normalize phone number
+      const normalizePhone = (phone) => {
+        if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+  
+        let normalizedPhone = typeof phone === 'number' ? String(phone) : phone;
+  
+        // Trim leading and trailing spaces
+        normalizedPhone = normalizedPhone.trim();
+  
+        // Detect and handle the presence of country codes (with or without a '+')
+        const hasCountryCode = normalizedPhone.match(/^(\+?\d{1,3})\s?\d+/);
+  
+        // Remove internal spaces and dashes
+        normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+  
+        // If a country code is detected, keep it intact
+        if (hasCountryCode) {
+          const countryCode = hasCountryCode[1].replace(/^\+/, ''); // Remove any leading +
+          return `${countryCode}${normalizedPhone.slice(hasCountryCode[1].length)}`;
         }
-        await client.save();
-      }
-
-      await candidate.save();
-      return res.status(200).json({
-        message: "Candidate updated in MasterSheet and all duplicate copies",
+  
+        // Return the normalized phone number without adding a country code
+        return normalizedPhone;
+      };
+  
+      const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
+  
+      // Normalize the phone number before performing checks
+      const normalizedPhone = normalizePhone(req.body.phone);
+  
+      // Check if any other candidate (excluding the current one) has the same normalized phone number
+      const existingCandidate = await Mastersheet.findOne({
+        phone: normalizedPhone,
+        _id: { $ne: req.params.id }, // Exclude the current candidate being edited
       });
+  
+      if (existingCandidate) {
+        return res.status(400).json({ message: "Candidate with this phone number already exists." });
+      }
+  
+      // Continue with updating the candidate if no duplicates are found
+      const newAssignProcess = req.body.assignProcess || candidate.assignProcess;
+      const isAssignProcessChanged = newAssignProcess !== candidate.assignProcess;
+  
+      // Updating candidate with new entries
+      candidate.name = req.body.name || candidate.name;
+      candidate.email = normalizeEmail(req.body.email) || candidate.email;
+      candidate.phone = normalizedPhone || candidate.phone;
+      candidate.status = req.body.status || candidate.status;
+      candidate.assignProcess = newAssignProcess;
+      candidate.interested = req.body.interested || candidate.interested;
+      candidate.assignedRecruiter = req.body.assignedRecruiter || candidate.assignedRecruiter;
+      candidate.language = req.body.language || candidate.language;
+      candidate.jbStatus = req.body.jbStatus || candidate.jbStatus;
+      candidate.qualification = req.body.qualification || candidate.qualification;
+      candidate.industry = req.body.industry || candidate.industry;
+      candidate.domain = req.body.domain || candidate.domain;
+      candidate.exp = req.body.exp || candidate.exp;
+      candidate.cLocation = req.body.cLocation || candidate.cLocation;
+      candidate.pLocation = req.body.pLocation || candidate.pLocation;
+      candidate.currentCTC = req.body.currentCTC || candidate.currentCTC;
+      candidate.expectedCTC = req.body.expectedCTC || candidate.expectedCTC;
+      candidate.noticePeriod = req.body.noticePeriod || candidate.noticePeriod;
+      candidate.wfh = req.body.wfh || candidate.wfh;
+      candidate.resumeLink = req.body.resumeLink || candidate.resumeLink;
+      candidate.linkedinLink = req.body.linkedinLink || candidate.linkedinLink;
+      candidate.feedback = req.body.feedback || candidate.feedback;
+      candidate.remark = req.body.remark || candidate.remark;
+      candidate.company = req.body.company || candidate.company;
+      candidate.voiceNonVoice = req.body.voiceNonVoice || candidate.voiceNonVoice;
+      candidate.source = req.body.source || candidate.source;
+      candidate.createdBy = createdBy;
+      candidate.lastUpdatedBy = lastUpdatedBy;
+  
+      if (isAssignProcessChanged) {
+        // If assignProcess is changed
+        console.log("AssignProcess changed");
+        const [clientName, processName, processLanguage] = newAssignProcess.split(" - ");
+  
+        const client = await ClientSheet.findOne({
+          clientName,
+          "clientProcess.clientProcessName": processName,
+          "clientProcess.clientProcessLanguage": processLanguage,
+        });
+  
+        if (client) {
+          const process = client.clientProcess.find(
+            (p) =>
+              p.clientProcessName === processName &&
+              p.clientProcessLanguage === processLanguage
+          );
+  
+          const newCandidate = {
+            candidateId: candidate._id,
+            name: candidate.name,
+            email: candidate.email,
+            phone: candidate.phone,
+            language: candidate.language,
+            jbStatus: candidate.jbStatus,
+            qualification: candidate.qualification,
+            industry: candidate.industry,
+            domain: candidate.domain,
+            exp: candidate.exp,
+            cLocation: candidate.cLocation,
+            pLocation: candidate.pLocation,
+            currentCTC: candidate.currentCTC,
+            expectedCTC: candidate.expectedCTC,
+            noticePeriod: candidate.noticePeriod,
+            wfh: candidate.wfh,
+            resumeLink: candidate.resumeLink,
+            linkedinLink: candidate.linkedinLink,
+            feedback: candidate.feedback,
+            remark: candidate.remark,
+            company: candidate.company,
+            voiceNonVoice: candidate.voiceNonVoice,
+            source: candidate.source,
+            interested: candidate.interested,
+            createdBy: createdBy,
+            lastUpdatedBy: lastUpdatedBy,
+            isProcessAssigned: true,
+          };
+  
+          process.interestedCandidates.push(newCandidate);
+  
+          candidate.assignProcess = null; // Reset the assignProcess in MasterSheet
+          candidate.isProcessAssigned = true;
+  
+          await client.save();
+          await candidate.save();
+  
+          return res.status(200).json({
+            message: "Candidate added to interestedCandidates and updated in MasterSheet",
+          });
+        } else {
+          return res.status(404).json({ message: "Client or process not found" });
+        }
+      } else {
+        // If assignProcess is not changed, update all copies in interestedCandidates[]
+        const clients = await ClientSheet.find({
+          "clientProcess.interestedCandidates.candidateId": candidate._id,
+        });
+  
+        for (const client of clients) {
+          for (const process of client.clientProcess) {
+            const interestedCandidate = process.interestedCandidates.find(
+              (c) => c.candidateId.toString() === candidate._id.toString()
+            );
+  
+            if (interestedCandidate) {
+              interestedCandidate.name = candidate.name;
+              interestedCandidate.email = candidate.email;
+              interestedCandidate.phone = candidate.phone;
+              interestedCandidate.status = candidate.status;
+              interestedCandidate.language = candidate.language;
+              interestedCandidate.jbStatus = candidate.jbStatus;
+              interestedCandidate.qualification = candidate.qualification;
+              interestedCandidate.industry = candidate.industry;
+              interestedCandidate.domain = candidate.domain;
+              interestedCandidate.exp = candidate.exp;
+              interestedCandidate.cLocation = candidate.cLocation;
+              interestedCandidate.pLocation = candidate.pLocation;
+              interestedCandidate.currentCTC = candidate.currentCTC;
+              interestedCandidate.expectedCTC = candidate.expectedCTC;
+              interestedCandidate.noticePeriod = candidate.noticePeriod;
+              interestedCandidate.wfh = candidate.wfh;
+              interestedCandidate.resumeLink = candidate.resumeLink;
+              interestedCandidate.linkedinLink = candidate.linkedinLink;
+              interestedCandidate.feedback = candidate.feedback;
+              interestedCandidate.remark = candidate.remark;
+              interestedCandidate.company = candidate.company;
+              interestedCandidate.voiceNonVoice = candidate.voiceNonVoice;
+              interestedCandidate.source = candidate.source;
+              interestedCandidate.createdBy = createdBy;
+              interestedCandidate.lastUpdatedBy = lastUpdatedBy
+            }
+          }
+          await client.save();
+        }
+  
+        await candidate.save();
+        return res.status(200).json({
+          message: "Candidate updated in MasterSheet and all duplicate copies",
+        });
+      }
+    } catch (err) {
+      console.error("Error updating the Candidate:", err);
+      res.status(500).json({ message: err.message });
     }
-  } catch (err) {
-    console.error("Error updating the Candidate:", err);
-    res.status(500).json({ message: err.message });
-  }
+
+
+  })
 });
 
 
@@ -472,6 +634,10 @@ router.post("/candidates/assign-process", async (req, res) => {
     let duplicateCandidates = [];
 
     for (let candidate of candidates) {
+
+// Ensure createdBy and lastUpdatedBy are handled properly
+const { createdBy, lastUpdatedBy } = candidate;
+
       // Create a new candidate object
       const newCandidate = {
         candidateId: candidate._id,
@@ -500,6 +666,8 @@ router.post("/candidates/assign-process", async (req, res) => {
         interested: candidate.interested,
         status: candidate.status,
         isProcessAssigned: true, // Set isProcessAssigned to true
+        createdBy: createdBy || null, // Ensure createdBy is copied if available
+        lastUpdatedBy: lastUpdatedBy || null, // Ensure lastUpdatedBy is copied if available
       };
 
       console.log(

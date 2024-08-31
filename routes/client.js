@@ -4,6 +4,8 @@ import ClientSheet from "../models/Client.js";
 import Mastersheet from "../models/Mastersheet.js";
 import Users from "../models/Users.js";
 import moment from "moment-timezone";
+import jwt from "jsonwebtoken";
+const secretKey = "secretKey";
 
 const router = express.Router();
 
@@ -13,6 +15,19 @@ router.get("/", (req, res) => {
     msg: "Client's APIs are working perfectly",
   });
 });
+
+// middleware for verifying the token
+function verifyToken(req, res, next) {
+  const bearerHeader = req.headers["authorization"];
+  if (typeof bearerHeader != "undefined") {
+    const bearer = bearerHeader.split(" ");
+    const token = bearer[1];
+    req.token = token;
+    next();
+  } else {
+    res.status(403).json({ message: "Forbidden: Invalid login" });
+  }
+}
 
 // -------------------------------------- client ---------------------------------------
 
@@ -393,121 +408,173 @@ router.put("/clients/:clientId/processes/:processId", async (req, res) => {
 });
 
 // PUT request to update specific candidate's specific details within a process
-
 router.put(
   "/clients/:clientId/processes/:processId/candidates/:candidateId",
+  verifyToken,
   async (req, res) => {
-    try {
-      const { clientId, processId, candidateId } = req.params;
-
-      // Find the client
-      const client = await ClientSheet.findById(clientId);
-
-      if (!client) {
-        return res.status(404).json({ message: "Client not found" });
+    jwt.verify(req.token, secretKey, async (err, authData) => {
+      if (err) {
+        return res.status(403).json({ message: "Forbidden: Invalid Token" });
       }
 
-      // Find the process within the client
-      const process = client.clientProcess.id(processId);
+      console.log("in this api");
 
-      if (!process) {
-        return res.status(404).json({ message: "Process not found" });
-      }
+      const lastUpdatedBy = authData.username;
 
-      // Find the interested candidate within the process
-      const candidate = process.interestedCandidates.id(candidateId);
+      try {
+        const { clientId, processId, candidateId } = req.params;
 
-      if (!candidate) {
-        return res
-          .status(404)
-          .json({ message: "Candidate not found in the process" });
-      }
+        // Find the client
+        const client = await ClientSheet.findById(clientId);
 
-      // Update specific fields in the candidate
-      candidate.assignedRecruiter =
-        req.body.assignedRecruiter || candidate.assignedRecruiter;
-      candidate.status = req.body.status || candidate.status;
-      candidate.interested = req.body.interested || candidate.interested;
+        if (!client) {
+          return res.status(404).json({ message: "Client not found" });
+        }
 
-      // Check if the assignProcess field should be enabled or disabled
-      if (candidate.status === "Rejected" || candidate.interested !== "interested") {
-        candidate.isProcessAssigned = false;
-      } else {
-        candidate.isProcessAssigned = true;
-      }
+        // Find the process within the client
+        const process = client.clientProcess.id(processId);
 
-      // Fields to update in the MasterSheet and other copies
-      const fieldsToUpdateInMaster = {
-        name: req.body.name,
-        email: req.body.email,
-        phone: req.body.phone,
-        language: req.body.language,
-        jbStatus: req.body.jbStatus,
-        qualification: req.body.qualification,
-        industry: req.body.industry,
-        domain: req.body.domain,
-        exp: req.body.exp,
-        cLocation: req.body.cLocation,
-        pLocation: req.body.pLocation,
-        currentCTC: req.body.currentCTC,
-        expectedCTC: req.body.expectedCTC,
-        noticePeriod: req.body.noticePeriod,
-        wfh: req.body.wfh,
-        resumeLink: req.body.resumeLink,
-        linkedinLink: req.body.linkedinLink,
-        feedback: req.body.feedback,
-        remark: req.body.remark,
-        company: req.body.company,
-        voiceNonVoice: req.body.voiceNonVoice,
-        source: req.body.source,
-        isProcessAssigned: candidate.isProcessAssigned == false ? false : true,
-      };
+        if (!process) {
+          return res.status(404).json({ message: "Process not found" });
+        }
 
-      // Find and update the candidate in the MasterSheet
-      const masterCandidate = await Mastersheet.findById(candidate.candidateId);
+        // Find the interested candidate within the process
+        const candidate = process.interestedCandidates.id(candidateId);
 
-      if (masterCandidate) {
-        Object.assign(masterCandidate, fieldsToUpdateInMaster);
+        if (!candidate) {
+          return res
+            .status(404)
+            .json({ message: "Candidate not found in the process" });
+        }
 
-        console.log("editing in the intCand[] of the process: " + masterCandidate);
+        // retain the created by field
+        const createdBy = candidate.createdBy;
+
+        // Update specific fields in the interested candidate[]
+        (candidate.name = req.body.name),
+          (candidate.email = req.body.email),
+          (candidate.phone = req.body.phone),
+          (candidate.language = req.body.language);
+        (candidate.qualification = req.body.qualification),
+          (candidate.industry = req.body.industry),
+          (candidate.domain = req.body.domain),
+          (candidate.exp = req.body.exp),
+          (candidate.cLocation = req.body.cLocation),
+          (candidate.pLocation = req.body.pLocation),
+          (candidate.currentCTC = req.body.currentCTC),
+          (candidate.expectedCTC = req.body.expectedCTC),
+          (candidate.noticePeriod = req.body.noticePeriod),
+          (candidate.wfh = req.body.wfh),
+          (candidate.resumeLink = req.body.resumeLink),
+          (candidate.linkedinLink = req.body.linkedinLink),
+          (candidate.feedback = req.body.feedback),
+          (candidate.remark = req.body.remark),
+          (candidate.company = req.body.company),
+          (candidate.voiceNonVoice = req.body.voiceNonVoice),
+          (candidate.source = req.body.source),
+          // complex fields
+          (candidate.assignedRecruiter =
+            req.body.assignedRecruiter || candidate.assignedRecruiter);
+        candidate.status = req.body.status || candidate.status;
+        candidate.interested = req.body.interested || candidate.interested;
+        candidate.lastUpdatedBy = lastUpdatedBy;
+        (candidate.createdBy = createdBy),
+          console.log("Candidate Status:", candidate.status);
+        console.log("Candidate Interested:", candidate.interested);
         
-        await masterCandidate.save();
 
-        // Find and update all copies of the candidate in other processes
-        const clients = await ClientSheet.find({
-          "clientProcess.interestedCandidates.candidateId":
-            candidate.candidateId,
-        });
+        // Immediately set isProcessAssigned based on status and interested values
+        if (candidate.interested !== "interested") {
+          // If interested is not "interested", isProcessAssigned should be false
+          candidate.isProcessAssigned = false;
+        } else if (candidate.status === "Rejected") {
+          // If interested is "interested" and status is "Rejected", isProcessAssigned should be false
+          candidate.isProcessAssigned = false;
+        } else {
+          // If interested is "interested" and status is not "Rejected", isProcessAssigned should be true
+          candidate.isProcessAssigned = true;
+        }
 
-        for (const client of clients) {
-          for (const process of client.clientProcess) {
-            for (const candidateCopy of process.interestedCandidates) {
-              if (
-                candidateCopy.candidateId.toString() ===
-                candidate.candidateId.toString()
-              ) {
-                Object.assign(candidateCopy, fieldsToUpdateInMaster);
+        console.log(
+          "Is process assigned after the logic: " + candidate.isProcessAssigned
+        );
+
+        // Fields to update in the MasterSheet and other copies
+        const fieldsToUpdateInMaster = {
+          name: req.body.name,
+          email: req.body.email,
+          phone: req.body.phone,
+          language: req.body.language,
+          jbStatus: req.body.jbStatus,
+          qualification: req.body.qualification,
+          industry: req.body.industry,
+          domain: req.body.domain,
+          exp: req.body.exp,
+          cLocation: req.body.cLocation,
+          pLocation: req.body.pLocation,
+          currentCTC: req.body.currentCTC,
+          expectedCTC: req.body.expectedCTC,
+          noticePeriod: req.body.noticePeriod,
+          wfh: req.body.wfh,
+          resumeLink: req.body.resumeLink,
+          linkedinLink: req.body.linkedinLink,
+          feedback: req.body.feedback,
+          remark: req.body.remark,
+          company: req.body.company,
+          voiceNonVoice: req.body.voiceNonVoice,
+          source: req.body.source,
+          isProcessAssigned: candidate.isProcessAssigned,
+          createdBy: createdBy,
+          lastUpdatedBy: lastUpdatedBy,
+        };
+
+        // Find and update the candidate in the MasterSheet
+        const masterCandidate = await Mastersheet.findById(
+          candidate.candidateId
+        );
+
+        if (masterCandidate) {
+          Object.assign(masterCandidate, fieldsToUpdateInMaster);
+
+          await masterCandidate.save();
+
+          // Find and update all copies of the candidate in other processes
+          const clients = await ClientSheet.find({
+            "clientProcess.interestedCandidates.candidateId":
+              candidate.candidateId,
+          });
+
+          for (const client of clients) {
+            for (const process of client.clientProcess) {
+              for (const candidateCopy of process.interestedCandidates) {
+                if (
+                  candidateCopy.candidateId.toString() ===
+                  candidate.candidateId.toString()
+                ) {
+                  Object.assign(candidateCopy, fieldsToUpdateInMaster);
+                }
               }
             }
+            // await client.save();
           }
-          await client.save();
+        } else {
+          console.warn(
+            `Master candidate with ID ${candidate.candidateId} not found.`
+          );
         }
-      } else {
-        console.warn(
-          `Master candidate with ID ${candidate.candidateId} not found.`
-        );
+
+        // Save the client document after updating candidate details
+        await client.save();
+
+        res.status(200).json({
+          message: "Candidate details updated successfully",
+          candidate,
+        });
+      } catch (error) {
+        console.error("Error updating candidate details:", error);
+        res.status(500).json({ message: "Server error", error });
       }
-
-      // Save the client document after updating candidate details
-      await client.save();
-
-      res
-        .status(200)
-        .json({ message: "Candidate details updated successfully", candidate });
-    } catch (error) {
-      console.error("Error updating candidate details:", error);
-      res.status(500).json({ message: "Server error", error });
-    }
+    });
   }
 );
 
@@ -685,45 +752,54 @@ router.get("/selected-candidates", async (req, res) => {
 });
 
 // Delete candidate from interestedCandidates array
-router.delete('/clients/:clientId/process/:processId/candidates/:candidateId', async (req, res) => {
-  try {
-    const { clientId, processId, candidateId } = req.params;
+router.delete(
+  "/clients/:clientId/process/:processId/candidates/:candidateId",
+  async (req, res) => {
+    try {
+      const { clientId, processId, candidateId } = req.params;
 
-    // Find the client
-    const client = await ClientSheet.findById(clientId);
-    if (!client) {
-      return res.status(404).json({ message: 'Client not found' });
+      // Find the client
+      const client = await ClientSheet.findById(clientId);
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+
+      // Find the process within the client
+      const process = client.clientProcess.id(processId);
+      if (!process) {
+        return res.status(404).json({ message: "Process not found" });
+      }
+
+      // Find the candidate within the interestedCandidates array
+      const candidateIndex = process.interestedCandidates.findIndex(
+        (candidate) => candidate.candidateId.toString() === candidateId
+      );
+
+      if (candidateIndex === -1) {
+        return res
+          .status(404)
+          .json({ message: "Candidate not found in interestedCandidates" });
+      }
+
+      // Remove the candidate from the interestedCandidates array
+      process.interestedCandidates.splice(candidateIndex, 1);
+
+      // Update the client document
+      await client.save();
+
+      // Optionally, update the candidate's isProcessAssigned field in the Mastersheet
+      await Mastersheet.findByIdAndUpdate(candidateId, {
+        isProcessAssigned: false,
+      });
+
+      res.status(200).json({
+        message: "Candidate removed from interestedCandidates successfully",
+      });
+    } catch (err) {
+      res.status(500).json({ message: err.message });
     }
-
-    // Find the process within the client
-    const process = client.clientProcess.id(processId);
-    if (!process) {
-      return res.status(404).json({ message: 'Process not found' });
-    }
-
-    // Find the candidate within the interestedCandidates array
-    const candidateIndex = process.interestedCandidates.findIndex(
-      (candidate) => candidate.candidateId.toString() === candidateId
-    );
-
-    if (candidateIndex === -1) {
-      return res.status(404).json({ message: 'Candidate not found in interestedCandidates' });
-    }
-
-    // Remove the candidate from the interestedCandidates array
-    process.interestedCandidates.splice(candidateIndex, 1);
-
-    // Update the client document
-    await client.save();
-
-    // Optionally, update the candidate's isProcessAssigned field in the Mastersheet
-    await Mastersheet.findByIdAndUpdate(candidateId, { isProcessAssigned: false });
-
-    res.status(200).json({ message: 'Candidate removed from interestedCandidates successfully' });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
   }
-});
+);
 
 //  ----------- Language filters API ---------------------------
 
@@ -753,11 +829,13 @@ router.get("/selectedFilter", async (req, res) => {
             let matchProficiency = true;
 
             if (lang) {
-              matchLang = candidate.language.some(l => l.lang === lang);
+              matchLang = candidate.language.some((l) => l.lang === lang);
             }
 
             if (proficiencyLevel) {
-              matchProficiency = candidate.language.some(l => proficiencyLevel.split(',').includes(l.proficiencyLevel));
+              matchProficiency = candidate.language.some((l) =>
+                proficiencyLevel.split(",").includes(l.proficiencyLevel)
+              );
             }
 
             if (matchLang && matchProficiency) {
@@ -782,88 +860,112 @@ router.get("/selectedFilter", async (req, res) => {
   }
 });
 
-// adding lang and proficiency filter for filtersheet 
-router.get("/clients/:clientId/process/:processId/filterLangFilter", async (req, res) => {
-  const { clientId, processId } = req.params;
-  const { lang, proficiencyLevel } = req.query;
+// adding lang and proficiency filter for filtersheet
+router.get(
+  "/clients/:clientId/process/:processId/filterLangFilter",
+  async (req, res) => {
+    const { clientId, processId } = req.params;
+    const { lang, proficiencyLevel } = req.query;
 
-  try {
-    const client = await ClientSheet.findById(clientId);
+    try {
+      const client = await ClientSheet.findById(clientId);
 
-    if (!client) {
-      return res.status(404).json({ message: "Client not found" });
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+
+      const process = client.clientProcess.id(processId);
+
+      if (!process) {
+        return res.status(404).json({ message: "Process not found" });
+      }
+
+      // Construct the filter for $elemMatch
+      let candidateFilter = (candidate) => true;
+
+      if (lang || proficiencyLevel) {
+        candidateFilter = (candidate) => {
+          const matchLang = lang
+            ? candidate.language.some((l) => l.lang === lang)
+            : true;
+          const matchProficiency = proficiencyLevel
+            ? candidate.language.some((l) =>
+                proficiencyLevel.split(",").includes(l.proficiencyLevel)
+              )
+            : true;
+          return matchLang && matchProficiency;
+        };
+      }
+
+      // Filter candidates based on language and proficiency
+      const filteredCandidates = process.interestedCandidates.filter(
+        (candidate) => candidateFilter(candidate)
+      );
+
+      res.status(200).json(filteredCandidates);
+    } catch (error) {
+      console.error("Error filtering candidates:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to filter candidates", error: error.message });
     }
-
-    const process = client.clientProcess.id(processId);
-
-    if (!process) {
-      return res.status(404).json({ message: "Process not found" });
-    }
-
-    // Construct the filter for $elemMatch
-    let candidateFilter = candidate => true;
-
-    if (lang || proficiencyLevel) {
-      candidateFilter = candidate => {
-        const matchLang = lang ? candidate.language.some(l => l.lang === lang) : true;
-        const matchProficiency = proficiencyLevel ? candidate.language.some(l => proficiencyLevel.split(',').includes(l.proficiencyLevel)) : true;
-        return matchLang && matchProficiency;
-      };
-    }
-
-    // Filter candidates based on language and proficiency
-    const filteredCandidates = process.interestedCandidates.filter(candidate => candidateFilter(candidate));
-
-    res.status(200).json(filteredCandidates);
-  } catch (error) {
-    console.error("Error filtering candidates:", error);
-    res.status(500).json({ message: "Failed to filter candidates", error: error.message });
   }
-});
+);
 
 // adding lang and proficiency filter for interested candidate
-router.get("/clients/:clientId/process/:processId/interestedlangfilter", async (req, res) => {
-  const { clientId, processId } = req.params;
-  const { lang, proficiencyLevel } = req.query;
+router.get(
+  "/clients/:clientId/process/:processId/interestedlangfilter",
+  async (req, res) => {
+    const { clientId, processId } = req.params;
+    const { lang, proficiencyLevel } = req.query;
 
-  try {
-    const client = await ClientSheet.findById(clientId);
+    try {
+      const client = await ClientSheet.findById(clientId);
 
-    if (!client) {
-      return res.status(404).json({ message: "Client not found" });
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+
+      const process = client.clientProcess.id(processId);
+
+      if (!process) {
+        return res.status(404).json({ message: "Process not found" });
+      }
+
+      // Construct the filter for $elemMatch
+      let candidateFilter = (candidate) => true;
+
+      if (lang || proficiencyLevel) {
+        candidateFilter = (candidate) => {
+          const matchLang = lang
+            ? candidate.language.some((l) => l.lang === lang)
+            : true;
+          const matchProficiency = proficiencyLevel
+            ? candidate.language.some((l) =>
+                proficiencyLevel.split(",").includes(l.proficiencyLevel)
+              )
+            : true;
+          return matchLang && matchProficiency;
+        };
+      }
+
+      // Filter candidates based on language, proficiency, and interest
+      const filteredCandidates = process.interestedCandidates.filter(
+        (candidate) => {
+          return (
+            candidate.interested === "interested" && candidateFilter(candidate)
+          );
+        }
+      );
+
+      res.status(200).json(filteredCandidates);
+    } catch (error) {
+      console.error("Error filtering candidates:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to filter candidates", error: error.message });
     }
-
-    const process = client.clientProcess.id(processId);
-
-    if (!process) {
-      return res.status(404).json({ message: "Process not found" });
-    }
-
-    // Construct the filter for $elemMatch
-    let candidateFilter = candidate => true;
-
-    if (lang || proficiencyLevel) {
-      candidateFilter = candidate => {
-        const matchLang = lang ? candidate.language.some(l => l.lang === lang) : true;
-        const matchProficiency = proficiencyLevel ? candidate.language.some(l => proficiencyLevel.split(',').includes(l.proficiencyLevel)) : true;
-        return matchLang && matchProficiency;
-      };
-    }
-
-    // Filter candidates based on language, proficiency, and interest
-    const filteredCandidates = process.interestedCandidates.filter(candidate => {
-      return candidate.interested === 'interested' && candidateFilter(candidate);
-    });
-
-    res.status(200).json(filteredCandidates);
-  } catch (error) {
-    console.error("Error filtering candidates:", error);
-    res.status(500).json({ message: "Failed to filter candidates", error: error.message });
   }
-});
-
-
-
-
+);
 
 export default router;

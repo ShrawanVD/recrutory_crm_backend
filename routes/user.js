@@ -15,7 +15,9 @@ const router = express.Router();
 
 // ---------------------- SIGN UP AND LOGIN ----------------------------------------
 
-// creating the user
+
+
+// Register a new user
 router.post("/register", async (req, res) => {
   const { username, password, role } = req.body;
 
@@ -32,7 +34,6 @@ router.post("/register", async (req, res) => {
     password: hashedPassword,
     role,
     assignedCandidatesId: [],
-    
   });
 
   await newUser.save();
@@ -48,7 +49,7 @@ const authenticateUser = async (username, password) => {
   return null;
 };
 
-// taking login details
+// Login and generate JWT
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -57,34 +58,31 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ message: "Invalid username or password" });
   }
 
-  const payload = { username: user.username, role: user.role,_id: user._id.toString() };
+  const payload = { username: user.username, role: user.role, _id: user._id.toString() };
 
-  jwt.sign(payload, secretKey, { expiresIn: "300s" }, (err, token) => {
+  jwt.sign(payload, secretKey, { expiresIn: "30m" }, (err, token) => {
     if (err) {
       return res.status(500).json({ message: "Internal server error" });
     }
-    res.json({ token,username: user.username, role: user.role,_id: user._id.toString() });
-    // res.json({ token });
+    res.json({ token, username: user.username, role: user.role, _id: user._id.toString() });
   });
 });
 
-// for accessing the profile
+// Accessing profile
 router.post("/profile", verifyToken, (req, res) => {
   jwt.verify(req.token, secretKey, (err, authData) => {
     if (err) {
-      res.send({
-        message: "Invalid Login",
-      });
+      res.send({ result: "Invalid login while accessing the profile",});
     } else {
       res.json({
-        message: "profile accessed",
+        message: "Profile accessed",
         authData,
       });
     }
   });
 });
 
-//   for verifying the token
+// Middleware for verifying the token
 function verifyToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
   if (typeof bearerHeader !== "undefined") {
@@ -93,9 +91,7 @@ function verifyToken(req, res, next) {
     req.token = token;
     next();
   } else {
-    res.send({
-      result: "invalid login",
-    });
+    res.send({ result: "invalid login in verify user file",});
   }
 }
 
