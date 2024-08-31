@@ -281,13 +281,10 @@ router.post("/candidates", verifyToken, async (req, res) => {
 // });
 
 // GET all candidates
-router.get("/candidates", async (req, res) => {
+router.get('/candidates', async (req, res) => {
   try {
-    // Sort candidates by the 'createdAt' field in descending order
-    // const candidates = await Mastersheet.find().sort({ createdAt: -1 });
-
-    // If you don’t have a 'createdAt' field, you can sort by '_id'
-    const candidates = await Mastersheet.find().sort({ _id: -1 });
+    const candidates = await Mastersheet.find()
+      .sort({ isProcessAssigned: -1, _id: -1 }); // Sort by `isProcessAssigned` (true first) and then by ID in descending order
 
     res.json(candidates);
   } catch (err) {
