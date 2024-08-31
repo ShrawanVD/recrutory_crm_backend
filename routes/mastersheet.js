@@ -392,7 +392,6 @@ router.delete("/candidates/:id", async (req, res) => {
 });
 
 // PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
-// PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
 router.put("/candidates/:id", verifyToken, async (req, res) => {
   jwt.verify(req.token, secretKey, async (err, authData) => {
 
@@ -475,10 +474,10 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.noticePeriod = req.body.noticePeriod || candidate.noticePeriod;
       candidate.wfh = req.body.wfh || candidate.wfh;
       candidate.resumeLink = req.body.resumeLink || candidate.resumeLink;
-      candidate.linkedinLink = req.body.linkedinLink || candidate.linkedinLink;
+      candidate.linkedinLink = req.body.linkedinLink;
       candidate.feedback = req.body.feedback || candidate.feedback;
-      candidate.remark = req.body.remark || candidate.remark;
-      candidate.company = req.body.company || candidate.company;
+      candidate.remark = req.body.remark;
+      candidate.company = req.body.company;
       candidate.voiceNonVoice = req.body.voiceNonVoice || candidate.voiceNonVoice;
       candidate.source = req.body.source || candidate.source;
       candidate.createdBy = createdBy;
