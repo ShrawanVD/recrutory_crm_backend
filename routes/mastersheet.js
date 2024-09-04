@@ -307,42 +307,6 @@ router.get("/candidates/:id", async (req, res) => {
   }
 });
 
-// GET candidate after filtering the language
-router.get("/langfilter", async (req, res) => {
-  try {
-    const { lang, proficiencyLevel } = req.query;
-
-    // Construct the filter for $elemMatch
-    let filter = {};
-
-    if (lang || proficiencyLevel) {
-      filter.language = { $elemMatch: {} };
-
-      if (lang) {
-        filter.language.$elemMatch.lang = lang;
-      }
-
-      if (proficiencyLevel) {
-        const proficiencyLevels = proficiencyLevel.split(","); // Split the comma-separated proficiency levels
-        filter.language.$elemMatch.proficiencyLevel = {
-          $in: proficiencyLevels,
-        };
-      }
-    }
-
-    // Log the constructed filter for debugging
-    console.log("Constructed filter:", filter);
-
-    // Perform the query with the constructed filter
-    const candidates = await Mastersheet.find(filter);
-    res.json(candidates);
-  } catch (err) {
-    console.error("Error filtering candidates:", err);
-    res
-      .status(500)
-      .json({ message: "Failed to filter candidates", error: err.message });
-  }
-});
 
 // DELETE candidate by id
 router.delete("/candidates/:id", async (req, res) => {
@@ -977,6 +941,304 @@ router.post("/candidate/import", async (req, res) => {
     res.status(500).json({ message: "Failed to create candidates", error: err.message });
   }
 });
+
+
+
+
+
+
+// ------------------------------------ filters ------------------------------------------
+
+
+// API to filter candidates based on language, proficiency, and experience
+
+// router.get('/filterCandidates', async (req, res) => {
+//   try {
+//     const { lang, proficiencyLevel, exp } = req.query;
+
+//     // Initialize filter conditions
+//     let filterConditions = {};
+
+//     // Handle Language and Proficiency Filter
+//     if (lang || proficiencyLevel) {
+//       filterConditions.language = { $elemMatch: {} };
+
+//       if (lang) {
+//         filterConditions.language.$elemMatch.lang = lang;
+//       }
+
+//       if (proficiencyLevel) {
+//         const proficiencyLevels = proficiencyLevel.split(","); // Split the comma-separated proficiency levels
+//         filterConditions.language.$elemMatch.proficiencyLevel = {
+//           $in: proficiencyLevels,
+//         };
+//       }
+//     }
+
+//     // Handle Experience Filter
+//     if (exp) {
+//       if (exp.toLowerCase() === 'fresher' || exp === '0') {
+//         filterConditions.exp = { $in: ['Fresher', 'fresher', 0] };  // Ensure 0 is numeric
+//       } else if (exp.includes('-')) {
+//         // Handle range filtering like '1-3'
+//         const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+//         console.log("min is: " + min);
+//         console.log("max is: " + max);
+
+//         if (isNaN(min) || isNaN(max)) {
+//           return res.status(400).json({ error: "Invalid experience range format" });
+//         }
+
+//         filterConditions.exp = {
+//           $gte: min,
+//           $lte: max
+//         };
+//       } else if (exp === '10+') {
+//         // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+//         filterConditions.exp = { $gte: 10, $lte: 60 };  // Numeric comparison for values 10.1 or higher
+//       }
+//     }
+
+//     // Log the constructed filter for debugging
+//     console.log("Constructed filter:", filterConditions);
+
+//     // Query the database with the combined filter conditions
+//     const candidates = await Mastersheet.find(filterConditions);
+
+//     // Return the filtered candidates
+//     res.status(200).json(candidates);
+//   } catch (error) {
+//     console.error("Error filtering candidates:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
+
+// perfect this is working fine, but i can observe some thing:  Like in the value 1-3, now everything is coming fine but some values liker 12, 15, 18, 22 etc are also coming and upon selecting the range: 3-6, same happens some values like 33, 38, 334 etc also shows up, which i dont want and in the case of 10+, everything is getting shown up so apart from that its working perfect
+
+router.get('/filterCandidates', async (req, res) => {
+  try {
+    const { lang, proficiencyLevel, exp } = req.query;
+
+    // Initialize filter conditions
+    let filterConditions = {};
+
+    // Handle Language and Proficiency Filter
+    if (lang || proficiencyLevel) {
+      filterConditions.language = { $elemMatch: {} };
+
+      if (lang) {
+        filterConditions.language.$elemMatch.lang = lang;
+      }
+
+      if (proficiencyLevel) {
+        const proficiencyLevels = proficiencyLevel.split(","); // Split the comma-separated proficiency levels
+        filterConditions.language.$elemMatch.proficiencyLevel = {
+          $in: proficiencyLevels,
+        };
+      }
+    }
+
+    // Handle Experience Filter
+    if (exp) {
+      if (exp.toLowerCase() === 'fresher' || exp === '0') {
+        filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };  // Ensure 0 is treated as string
+      } else if (exp.includes('-')) {
+        // Handle range filtering like '1-3'
+        const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+        if (isNaN(min) || isNaN(max)) {
+          return res.status(400).json({ error: "Invalid experience range format" });
+        }
+
+        // Ensure numeric comparison
+        filterConditions.exp = {
+          $gte: min,
+          $lte: max,
+        };
+      } else if (exp === '10+') {
+        // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+        filterConditions.exp = { $gte: 10.1 };
+      }
+    }
+
+    // Log the constructed filter for debugging
+    console.log("Constructed filter:", filterConditions);
+
+    // Query the database with the combined filter conditions
+    const candidates = await Mastersheet.find(filterConditions).lean();
+
+    // Convert experience fields from strings to numbers after fetching them
+    candidates.forEach(candidate => {
+      if (typeof candidate.exp === 'string') {
+        candidate.exp = parseFloat(candidate.exp);
+      }
+    });
+
+    // Return the filtered candidates
+    res.status(200).json(candidates);
+  } catch (error) {
+    console.error("Error filtering candidates:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+
+
+
+// ---------------------------------------------------------------------
+
+// perfect this is working fine, but i can observe some thing:  Like in the value 1-3, now everything is coming fine but some values liker 12, 15, 18, 22 etc are also coming and upon selecting the range: 3-6, same happens some values like 33, 38, 334 etc also shows up, which i dont want and in the case of 10+, everything is getting shown up so apart from that its working perfect
+// router.get('/filterCandidates', async (req, res) => {
+//   try {
+//     const { lang, proficiencyLevel, exp } = req.query;
+
+//     // Initialize filter conditions
+//     let filterConditions = {};
+
+//     // Handle Language and Proficiency Filter
+//     if (lang || proficiencyLevel) {
+//       filterConditions.language = { $elemMatch: {} };
+
+//       if (lang) {
+//         filterConditions.language.$elemMatch.lang = lang;
+//       }
+
+//       if (proficiencyLevel) {
+//         const proficiencyLevels = proficiencyLevel.split(","); // Split the comma-separated proficiency levels
+//         filterConditions.language.$elemMatch.proficiencyLevel = {
+//           $in: proficiencyLevels,
+//         };
+//       }
+//     }
+
+//     // Handle Experience Filter
+//     if (exp) {
+//       if (exp.toLowerCase() === 'fresher' || exp === '0') {
+//         filterConditions.exp = { $in: ['Fresher', 'fresher', 0] };  // Ensure 0 is numeric
+//       } else if (exp.includes('-')) {
+//         // Handle range filtering like '1-3'
+//         const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+//         console.log("min is: " + min);
+//         console.log("max is: " + max);
+
+//         if (isNaN(min) || isNaN(max)) {
+//           return res.status(400).json({ error: "Invalid experience range format" });
+//         }
+
+//         // Convert experience values to numbers in the database for comparison
+//         filterConditions.exp = {
+//           $gte: min,
+//           $lte: max,
+//         };
+//       } else if (exp === '10+') {
+//         // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+//         filterConditions.exp = { $gte: 10.1 };
+//       }
+//     }
+
+//     // Log the constructed filter for debugging
+//     console.log("Constructed filter:", filterConditions);
+
+//     // Query the database with the combined filter conditions
+//     const candidates = await Mastersheet.find(filterConditions).lean();
+
+//     // Convert experience fields from strings to numbers after fetching them
+//     candidates.forEach(candidate => {
+//       if (typeof candidate.exp === 'string') {
+//         candidate.exp = parseFloat(candidate.exp);
+//       }
+//       console.log("Candidate Exp (post-conversion):", candidate.exp);
+//     });
+
+//     // Return the filtered candidates
+//     res.status(200).json(candidates);
+//   } catch (error) {
+//     console.error("Error filtering candidates:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
+
+// ---------------------------------------------------------------------
+
+// // GET candidate after filtering the language
+// router.get("/langfilter", async (req, res) => {
+//   try {
+//     const { lang, proficiencyLevel } = req.query;
+
+//     // Construct the filter for $elemMatch
+//     let filter = {};
+
+//     if (lang || proficiencyLevel) {
+//       filter.language = { $elemMatch: {} };
+
+//       if (lang) {
+//         filter.language.$elemMatch.lang = lang;
+//       }
+
+//       if (proficiencyLevel) {
+//         const proficiencyLevels = proficiencyLevel.split(","); // Split the comma-separated proficiency levels
+//         filter.language.$elemMatch.proficiencyLevel = {
+//           $in: proficiencyLevels,
+//         };
+//       }
+//     }
+
+//     // Log the constructed filter for debugging
+//     console.log("Constructed filter:", filter);
+
+//     // Perform the query with the constructed filter
+//     const candidates = await Mastersheet.find(filter);
+//     res.json(candidates);
+//   } catch (err) {
+//     console.error("Error filtering candidates:", err);
+//     res
+//       .status(500)
+//       .json({ message: "Failed to filter candidates", error: err.message });
+//   }
+// });
+
+
+
+// // API to filter candidates based on experience only
+// router.get('/expFilter', async (req, res) => {
+//   try {
+//     const { exp } = req.query;  // Extract the experience filter from the query parameters
+
+//     // Initialize filter conditions
+//     let filterConditions = {};
+
+//     // Handle Experience Filter
+//     if (exp) {
+//       if (exp.toLowerCase() === 'fresher' || exp === '0') {
+//         filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };
+//       } else if (exp.includes('-')) {
+//         // Handle range filtering like '1 - 3'
+//         const [min, max] = exp.split(' - ').map(val => parseFloat(val.trim()));
+//         filterConditions.exp = {
+//           $gte: min.toFixed(1),  // Convert min to string with one decimal point
+//           $lte: max.toFixed(1)   // Convert max to string with one decimal point
+//         };
+//       } else if (exp === '10+') {
+//         // Handle '10+' case
+//         filterConditions.exp = { $gt: '10' };
+//       }
+//     }
+
+//     // Query the database with the experience filter conditions
+//     const candidates = await Mastersheet.find(filterConditions);
+
+//     // Return the filtered candidates
+//     res.status(200).json(candidates);
+//   } catch (error) {
+//     console.error("Error filtering candidates by experience:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
+
+
 
 
 

@@ -60,7 +60,7 @@ router.post("/login", async (req, res) => {
 
   const payload = { username: user.username, role: user.role, _id: user._id.toString() };
 
-  jwt.sign(payload, secretKey, { expiresIn: "30m" }, (err, token) => {
+  jwt.sign(payload, secretKey, { expiresIn: "20h" }, (err, token) => {
     if (err) {
       return res.status(500).json({ message: "Internal server error" });
     }
