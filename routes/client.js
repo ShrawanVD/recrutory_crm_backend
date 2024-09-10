@@ -735,8 +735,11 @@ router.delete(
       // Update the client document
       await client.save();
 
+      console.log("in deleting candidate from int cand[]");
+
       // Optionally, update the candidate's isProcessAssigned field in the Mastersheet
       await Mastersheet.findByIdAndUpdate(candidateId, {
+        assignProcess: null,
         isProcessAssigned: false,
       });
 

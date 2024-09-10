@@ -12,10 +12,7 @@ import moment from "moment-timezone";
 
 const router = express.Router();
 
-
 // ---------------------- SIGN UP AND LOGIN ----------------------------------------
-
-
 
 // Register a new user
 router.post("/register", async (req, res) => {
@@ -58,13 +55,22 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ message: "Invalid username or password" });
   }
 
-  const payload = { username: user.username, role: user.role, _id: user._id.toString() };
+  const payload = {
+    username: user.username,
+    role: user.role,
+    _id: user._id.toString(),
+  };
 
   jwt.sign(payload, secretKey, { expiresIn: "20h" }, (err, token) => {
     if (err) {
       return res.status(500).json({ message: "Internal server error" });
     }
-    res.json({ token, username: user.username, role: user.role, _id: user._id.toString() });
+    res.json({
+      token,
+      username: user.username,
+      role: user.role,
+      _id: user._id.toString(),
+    });
   });
 });
 
@@ -72,7 +78,7 @@ router.post("/login", async (req, res) => {
 router.post("/profile", verifyToken, (req, res) => {
   jwt.verify(req.token, secretKey, (err, authData) => {
     if (err) {
-      res.send({ result: "Invalid login while accessing the profile",});
+      res.send({ result: "Invalid login while accessing the profile" });
     } else {
       res.json({
         message: "Profile accessed",
@@ -91,20 +97,18 @@ function verifyToken(req, res, next) {
     req.token = token;
     next();
   } else {
-    res.send({ result: "invalid login in verify user file",});
+    res.send({ result: "invalid login in verify user file" });
   }
 }
-
-
 
 // ------------------- user's general properties': -------------------------------------------
 
 // Fetch users by role
-router.get('/users-by-role', async (req, res) => {
+router.get("/users-by-role", async (req, res) => {
   const { role } = req.query;
 
   if (!role) {
-    return res.status(400).json({ message: 'Role is required' });
+    return res.status(400).json({ message: "Role is required" });
   }
 
   try {
@@ -118,59 +122,59 @@ router.get('/users-by-role', async (req, res) => {
 
     res.status(200).json(userMap);
   } catch (error) {
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
 // get all the users
-router.get("/users", async (req,res) => {
+router.get("/users", async (req, res) => {
   try {
     const users = await Users.find();
     res.json(users);
   } catch (error) {
     res.status(500).json({
-      message: err.message
+      message: err.message,
     });
   }
-})
+});
 
 // get user by id
-router.get("/users/:id", async (req,res) => {
+router.get("/users/:id", async (req, res) => {
   try {
     const { id } = req.params;
     const user = await Users.findById(id);
 
-    if(!user){
-      res.status(404).json({message: "User not found"});
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
     }
     res.status(200).json(user);
   } catch (error) {
     res.status(500).json({
-      message: error.message
+      message: error.message,
     });
   }
-})
+});
 
 // delete a particular user
-router.delete("/users/:id", async (req,res) => {
+router.delete("/users/:id", async (req, res) => {
   try {
-    const {id} = req.params;
+    const { id } = req.params;
     const user = await Users.findById(id);
 
-    if(!user){
+    if (!user) {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
 
     await user.deleteOne();
     res.json({
-      message: "User Deleted Successfully"
+      message: "User Deleted Successfully",
     });
   } catch (error) {
-    res.status(500).json({message: error.message});
+    res.status(500).json({ message: error.message });
   }
-})
+});
 
 // edit a particular user
 // edit a particular user
@@ -183,8 +187,8 @@ router.put("/users/:id", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    console.log('Original User:', user);
-    console.log('Request Body:', req.body);
+    console.log("Original User:", user);
+    console.log("Request Body:", req.body);
 
     let hashedPassword = user.password;
     if (req.body.password) {
@@ -197,19 +201,18 @@ router.put("/users/:id", async (req, res) => {
 
     await user.save();
 
-    console.log('Updated User:', user);
+    console.log("Updated User:", user);
     res.status(200).json({ message: "User Updated Successfully" });
   } catch (err) {
-    console.error('Error updating user:', err);
+    console.error("Error updating user:", err);
     res.status(500).json({ message: err.message });
   }
 });
 
-
 // router.put("/users/:id", async (req,res) => {
- 
+
 //   try {
-    
+
 //     const { id } = req.params;
 //     const user = await Users.findById(id);
 
@@ -241,43 +244,49 @@ router.put("/users/:id", async (req, res) => {
 
 // })
 
-
 // ---------------------- user specific properties -------------------------------------
 
 // Fetch candidates assigned to a particular recruiter
-router.get('/assigned-candidates', async (req, res) => {
+router.get("/assigned-candidates", async (req, res) => {
   const { recruiterId } = req.query;
   console.log("recruiter id is: " + recruiterId);
 
   if (!recruiterId) {
-    return res.status(400).json({ message: 'Recruiter ID is required' });
+    return res.status(400).json({ message: "Recruiter ID is required" });
   }
 
   try {
     const clients = await ClientSheet.find({
-      'clientProcess.interestedCandidates.assignedRecruiterId': new mongoose.Types.ObjectId(recruiterId)
+      "clientProcess.interestedCandidates.assignedRecruiterId":
+        new mongoose.Types.ObjectId(recruiterId),
     }).populate({
-      path: 'clientProcess.interestedCandidates',
+      path: "clientProcess.interestedCandidates",
       populate: {
-        path: 'candidateId',
-        select: '_id' // Only include the _id field of candidateId
-      }
+        path: "candidateId",
+        select: "_id", // Only include the _id field of candidateId
+      },
     });
 
     const candidates = [];
 
-    clients.forEach(client => {
-      client.clientProcess.forEach(process => {
-        process.interestedCandidates.forEach(candidate => {
-          if (candidate.assignedRecruiterId && candidate.assignedRecruiterId.toString() === recruiterId) {
-            console.log("candidate.assignedRecruiterId is: " + candidate.assignedRecruiterId);
+    clients.forEach((client) => {
+      client.clientProcess.forEach((process) => {
+        process.interestedCandidates.forEach((candidate) => {
+          if (
+            candidate.assignedRecruiterId &&
+            candidate.assignedRecruiterId.toString() === recruiterId
+          ) {
+            console.log(
+              "candidate.assignedRecruiterId is: " +
+                candidate.assignedRecruiterId
+            );
             console.log("recruiterId is: " + recruiterId);
             candidates.push({
               candidateId: candidate.candidateId, // Include only _id of candidateId
               clientProcessId: process.id, // Include _id of clientProcess
               clientId: client.id, // Include _id of client
               ...candidate._doc,
-              assignedProcess: `${client.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`
+              assignedProcess: `${client.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`,
             });
           }
         });
@@ -288,49 +297,59 @@ router.get('/assigned-candidates', async (req, res) => {
     res.status(200).json(candidates);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Internal server error', error });
+    res.status(500).json({ message: "Internal server error", error });
   }
 });
 
 // filter for candidate assigned to a particular recruiter
-router.get('/filterCandidateRecruiter', async (req, res) => {
+router.get("/filterCandidateRecruiter", async (req, res) => {
   const { recruiterId, lang, proficiencyLevel } = req.query;
   console.log("recruiter id is: " + recruiterId);
 
   if (!recruiterId) {
-    return res.status(400).json({ message: 'Recruiter ID is required' });
+    return res.status(400).json({ message: "Recruiter ID is required" });
   }
 
   try {
     const clients = await ClientSheet.find({
-      'clientProcess.interestedCandidates.assignedRecruiterId': new mongoose.Types.ObjectId(recruiterId)
+      "clientProcess.interestedCandidates.assignedRecruiterId":
+        new mongoose.Types.ObjectId(recruiterId),
     }).populate({
-      path: 'clientProcess.interestedCandidates',
+      path: "clientProcess.interestedCandidates",
       populate: {
-        path: 'candidateId',
-        select: '_id' // Only include the _id field of candidateId
-      }
+        path: "candidateId",
+        select: "_id", // Only include the _id field of candidateId
+      },
     });
 
     const candidates = [];
 
-    clients.forEach(client => {
-      client.clientProcess.forEach(process => {
-        process.interestedCandidates.forEach(candidate => {
-          if (candidate.assignedRecruiterId && candidate.assignedRecruiterId.toString() === recruiterId) {
+    clients.forEach((client) => {
+      client.clientProcess.forEach((process) => {
+        process.interestedCandidates.forEach((candidate) => {
+          if (
+            candidate.assignedRecruiterId &&
+            candidate.assignedRecruiterId.toString() === recruiterId
+          ) {
             let match = false;
 
             if (lang && proficiencyLevel) {
               // Both lang and proficiencyLevel are provided
-              const proficiencyLevels = proficiencyLevel.split(',');
-              match = candidate.language.some(l => l.lang === lang && proficiencyLevels.includes(l.proficiencyLevel));
+              const proficiencyLevels = proficiencyLevel.split(",");
+              match = candidate.language.some(
+                (l) =>
+                  l.lang === lang &&
+                  proficiencyLevels.includes(l.proficiencyLevel)
+              );
             } else if (lang) {
               // Only lang is provided
-              match = candidate.language.some(l => l.lang === lang);
+              match = candidate.language.some((l) => l.lang === lang);
             } else if (proficiencyLevel) {
               // Only proficiencyLevel is provided
-              const proficiencyLevels = proficiencyLevel.split(',');
-              match = candidate.language.some(l => proficiencyLevels.includes(l.proficiencyLevel));
+              const proficiencyLevels = proficiencyLevel.split(",");
+              match = candidate.language.some((l) =>
+                proficiencyLevels.includes(l.proficiencyLevel)
+              );
             } else {
               // No lang or proficiencyLevel provided
               match = true;
@@ -342,7 +361,7 @@ router.get('/filterCandidateRecruiter', async (req, res) => {
                 clientProcessId: process._id, // Include _id of clientProcess
                 clientId: client._id, // Include _id of client
                 ...candidate._doc,
-                assignedProcess: `${client.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`
+                assignedProcess: `${client.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`,
               });
             }
           }
@@ -354,13 +373,112 @@ router.get('/filterCandidateRecruiter', async (req, res) => {
     res.status(200).json(candidates);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Internal server error', error });
+    res.status(500).json({ message: "Internal server error", error });
   }
 });
 
+// PUT request for handling Interested and not interested status by the recruiter
 
 
-// PUT request for handling Interested and not interested status by the recruiter 
+// router.put("/update-status", async (req, res) => {
+//   const { clientId, clientProcessId, candidateId, interestedStatus } = req.body;
+
+//   if (!candidateId || !interestedStatus) {
+//     return res
+//       .status(400)
+//       .json({ message: "Candidate ID and interestedStatus are required" });
+//   }
+
+//   try {
+//     // Find the client
+//     const client = await ClientSheet.findById(clientId);
+//     console.log("Client ID is: " + clientId);
+
+//     if (!client) {
+//       return res.status(404).json({ message: "Client not found" });
+//     }
+
+//     // Find the process within the client
+//     const process = client.clientProcess.id(clientProcessId);
+
+//     if (!process) {
+//       return res.status(404).json({ message: "Process not found" });
+//     }
+
+//     // Find the interested candidate within the process
+//     const candidate = process.interestedCandidates.id(candidateId);
+
+//     if (!candidate) {
+//       return res
+//         .status(404)
+//         .json({ message: "Candidate not found in the process" });
+//     }
+
+//     const oldInterestedStatus = candidate.interested;
+//     candidate.interested = interestedStatus;
+
+//     if (
+//       interestedStatus === "interested" &&
+//       oldInterestedStatus !== "interested"
+//     ) {
+//       candidate.markedInterestedDate = moment()
+//         .tz("Asia/Kolkata")
+//         .format("YYYY-MM-DD HH:mm:ss");
+//     } else if (interestedStatus !== "interested") {
+//       candidate.interested = null;
+//       candidate.markedInterestedDate = null;
+
+//       if (candidate.feedback === "" && candidate.remark === "") {
+//         return res.status(404).json({
+//           message:
+//             "Please provide the feedback and remark for not being interested",
+//         });
+//       } else {
+//         // Move remark and feedback to Mastersheet
+//         const mastersheetCandidate = await Mastersheet.findById(
+//           candidate.candidateId
+//         );
+
+//         if (mastersheetCandidate) {
+//           console.log("in if condition");
+//           mastersheetCandidate.remark = candidate.remark;
+//           mastersheetCandidate.feedback = candidate.feedback;
+
+//           // Check the current type and value of assignProcess before updating it
+//           console.log(
+//             "Current assignProcess value before setting to null:",
+//             JSON.stringify(mastersheetCandidate.assignProcess, null, 2) // Use JSON.stringify for better logging
+//           );
+
+//           mastersheetCandidate.isProcessAssigned = false;
+//           mastersheetCandidate.assignProcess = null;
+
+//           // Save the updated master candidate
+//           await mastersheetCandidate.save();
+
+//           // Delete the candidate from the process
+//           await candidate.deleteOne();
+//         } else {
+//           console.error(
+//             "Mastersheet candidate not found for ID:",
+//             candidate.candidateId
+//           );
+//         }
+//       }
+//     }
+
+//     // Save the client irrespective of the update being interested or not interested
+//     await client.save();
+
+//     res
+//       .status(200)
+//       .json({ message: "Candidate interest status updated successfully" });
+//   } catch (error) {
+//     console.error("Error updating candidate interest status:", error);
+//     res.status(500).json({ message: "Internal server error", error });
+//   }
+// });
+
 router.put("/update-status", async (req, res) => {
   const { clientId, clientProcessId, candidateId, interestedStatus } = req.body;
 
@@ -403,7 +521,7 @@ router.put("/update-status", async (req, res) => {
       oldInterestedStatus !== "interested"
     ) {
       candidate.markedInterestedDate = moment().tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss");
-    } 
+    }
     else if (interestedStatus !== "interested") {
       candidate.interested = null;
       candidate.markedInterestedDate = null;
@@ -412,7 +530,7 @@ router.put("/update-status", async (req, res) => {
           message:
             "Please provide the feedback and remark for not being interested",
         });
-      } 
+      }
       else {
         // Move remark and feedback to Mastersheet
         const mastersheetCandidate = await Mastersheet.findById(
@@ -422,10 +540,14 @@ router.put("/update-status", async (req, res) => {
         if (mastersheetCandidate) {
           mastersheetCandidate.remark = candidate.remark;
           mastersheetCandidate.feedback = candidate.feedback;
-          mastersheetCandidate.isProcessAssigned = false;
+          mastersheetCandidate.assignProcess = null; mastersheetCandidate.isProcessAssigned = false;
+
+          // Save the updated master candidate
           await mastersheetCandidate.save();
+
+          // Delete the candidate from the process
           await candidate.deleteOne();
-        } 
+        }
         else {
           console.error(
             "Mastersheet candidate not found for ID:",
@@ -438,7 +560,6 @@ router.put("/update-status", async (req, res) => {
     // save the client irrespective of the update being interested or not interested
     await client.save();
 
-
     res
       .status(200)
       .json({ message: "Candidate interest status updated successfully" });
@@ -446,11 +567,5 @@ router.put("/update-status", async (req, res) => {
     res.status(500).json({ message: "Internal server error", error });
   }
 });
-
-
-
-
-
-
 
 export default router;

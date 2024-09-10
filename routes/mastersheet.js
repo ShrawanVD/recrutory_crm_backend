@@ -630,11 +630,6 @@ const { createdBy, lastUpdatedBy } = candidate;
         lastUpdatedBy: lastUpdatedBy || null, // Ensure lastUpdatedBy is copied if available
       };
 
-      console.log(
-        "Candidate in the masterSheet after assigning process is: " +
-          newCandidate
-      );
-
       // Find the process
       const process = client.clientProcess.find(
         (p) =>
@@ -652,7 +647,7 @@ const { createdBy, lastUpdatedBy } = candidate;
         process.interestedCandidates.push(newCandidate);
 
         // Update candidate in the MasterSheet
-        candidate.assignProcess = null;
+        candidate.assignProcess = `${clientName} - ${processName} - ${processLanguage}`;
         candidate.isProcessAssigned = true; // Set isProcessAssigned to true in MasterSheet
 
         await candidate.save();
