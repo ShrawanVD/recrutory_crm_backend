@@ -15,7 +15,7 @@ const MasterSheetSchema = new Schema({
   status: { type: String, default: null },
   assignProcess: { type: String, default: null },
   isProcessAssigned: { type: Boolean, default: false },
-  interested: { type: String, default: null },  // Field for marking candidates interested or not by the recruiters
+  interested: { type: String, default: null },
   assignedRecruiter: { type: String, default: null },
   language: [LanguageSchema],
   jbStatus: { type: String },

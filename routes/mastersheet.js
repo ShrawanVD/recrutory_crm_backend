@@ -186,7 +186,7 @@ function verifyToken(req, res, next) {
   }
 }
 
-// Candidate creation route
+// Create candidate
 router.post("/candidates", verifyToken, async (req, res) => {
   jwt.verify(req.token, secretKey, async (err, authData) => {
     if (err) {

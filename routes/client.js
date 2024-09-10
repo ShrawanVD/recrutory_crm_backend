@@ -660,58 +660,6 @@ router.put(
   }
 );
 
-// update the count dynamically of totalAssigned, totalInterested and totalSelected ((not working so halted it))
-// const updateRecruiterCounts = async (recruiterId) => {
-//   if (!recruiterId) return;
-
-//   try {
-//     // Calculate total assigned candidates
-//     const totalAssignedCandidates = await ClientSheet.aggregate([
-//       { $unwind: '$clientProcess' },
-//       { $unwind: '$clientProcess.interestedCandidates' },
-//       { $match: { 'clientProcess.interestedCandidates.assignedRecruiterId': new mongoose.Types.ObjectId(recruiterId) } },
-//       { $group: { _id: null, totalAssigned: { $sum: 1 } } }
-//     ]);
-
-//     const totalAssignedCount = totalAssignedCandidates.length > 0 ? totalAssignedCandidates[0].totalAssigned : 0;
-//     console.log('Total Assigned Candidates:', totalAssignedCount);
-
-//     // Calculate total interested amongst assigned
-//     const totalInterestedAmongstAssigned = await ClientSheet.aggregate([
-//       { $unwind: '$clientProcess' },
-//       { $unwind: '$clientProcess.interestedCandidates' },
-//       { $match: { 'clientProcess.interestedCandidates.assignedRecruiterId': new mongoose.Types.ObjectId(recruiterId), 'clientProcess.interestedCandidates.interested': 'yes' } },
-//       { $group: { _id: null, totalInterested: { $sum: 1 } } }
-//     ]);
-
-//     const totalInterestedCount = totalInterestedAmongstAssigned.length > 0 ? totalInterestedAmongstAssigned[0].totalInterested : 0;
-//     console.log('Total Interested Amongst Assigned:', totalInterestedCount);
-
-//     // Calculate total selected amongst interested
-//     const totalSelectedAmongstInterested = await ClientSheet.aggregate([
-//       { $unwind: '$clientProcess' },
-//       { $unwind: '$clientProcess.interestedCandidates' },
-//       { $match: { 'clientProcess.interestedCandidates.assignedRecruiterId': new mongoose.Types.ObjectId(recruiterId), 'clientProcess.interestedCandidates.status': 'selected' } },
-//       { $group: { _id: null, totalSelected: { $sum: 1 } } }
-//     ]);
-
-//     const totalSelectedCount = totalSelectedAmongstInterested.length > 0 ? totalSelectedAmongstInterested[0].totalSelected : 0;
-//     console.log('Total Selected Amongst Interested:', totalSelectedCount);
-
-//     // Update the recruiter counts
-//     await Users.findByIdAndUpdate(recruiterId, {
-//       totalAssignedCandidates: totalAssignedCount,
-//       totalInterestedAmongstAssigned: totalInterestedCount,
-//       totalSelectedAmongstInterested: totalSelectedCount
-//     });
-
-//     console.log(`Updated recruiter ${recruiterId} counts successfully.`);
-//   } catch (error) {
-//     console.error('Error updating recruiter counts:', error);
-//   }
-// };
-
-// get all selected candidates
 
 router.get("/selected-candidates", async (req, res) => {
   try {
@@ -803,6 +751,466 @@ router.delete(
 
 //  ----------- Language filters API ---------------------------
 
+// adding lang and proficiency filter for filtersheet (client is not defined issue is coming)
+// router.get('/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?', async (req, res) => {
+//   const { clientId, processId, lang, proficiencyLevels, exp } = req.params;  // Changed from req.query to req.params
+
+//   try {
+//     // Find the client by clientId
+//     const client = await ClientSheet.findById(clientId);
+
+//     if (!client) {
+//       return res.status(404).json({ message: "Client not found" });
+//     }
+
+//     // Find the process by processId
+//     const process = client.clientProcess.id(processId);
+
+//     if (!process) {
+//       return res.status(404).json({ message: "Process not found" });
+//     }
+
+//     // Initialize filter conditions for candidates
+//     let filterConditions = {};
+
+//     // Handle Language and Proficiency Filter
+//     if (lang || proficiencyLevels) {
+//       filterConditions.language = { $elemMatch: {} };
+
+//       if (lang) {
+//         filterConditions.language.$elemMatch.lang = lang;
+//       }
+
+//       if (proficiencyLevels) {
+//         const proficiencyLevelsArray = proficiencyLevels.split(","); // Split the comma-separated proficiency levels
+//         filterConditions.language.$elemMatch.proficiencyLevel = {
+//           $in: proficiencyLevelsArray,
+//         };
+//       }
+//     }
+
+//     // Handle Experience Filter
+//     if (exp) {
+//       if (exp.toLowerCase() === 'fresher' || exp === '0') {
+//         filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };  // Ensure 0 is treated as string
+//       } else if (exp.includes('-')) {
+//         // Handle range filtering like '1-3'
+//         const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+//         if (isNaN(min) || isNaN(max)) {
+//           return res.status(400).json({ error: "Invalid experience range format" });
+//         }
+
+//         // Ensure numeric comparison
+//         filterConditions.exp = {
+//           $gte: min,
+//           $lte: max,
+//         };
+//       } else if (exp === '10+') {
+//         // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+//         filterConditions.exp = { $gte: 10.1 };
+//       }
+//     }
+
+//     // Log the constructed filter for debugging
+//     console.log("Constructed filter:", filterConditions);
+
+//     // Apply the filters to the interestedCandidates
+//     const filteredCandidates = process.interestedCandidates.filter((candidate) => {
+//       // Apply the language and proficiency filter if it exists
+//       let matchLang = true;
+//       let matchProficiency = true;
+//       if (filterConditions.language) {
+//         matchLang = filterConditions.language.$elemMatch.lang
+//           ? candidate.language.some((l) => l.lang === filterConditions.language.$elemMatch.lang)
+//           : true;
+//         matchProficiency = filterConditions.language.$elemMatch.proficiencyLevel
+//           ? candidate.language.some((l) =>
+//               filterConditions.language.$elemMatch.proficiencyLevel.$in.includes(l.proficiencyLevel)
+//             )
+//           : true;
+//       }
+
+//       // Apply the experience filter if it exists
+//       let matchExp = true;
+//       if (filterConditions.exp) {
+//         if (Array.isArray(filterConditions.exp.$in)) {
+//           matchExp = filterConditions.exp.$in.includes(candidate.exp);
+//         } else if (filterConditions.exp.$gte !== undefined && filterConditions.exp.$lte !== undefined) {
+//           matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte &&
+//             parseFloat(candidate.exp) <= filterConditions.exp.$lte;
+//         } else if (filterConditions.exp.$gte !== undefined) {
+//           matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte;
+//         }
+//       }
+
+//       return matchLang && matchProficiency && matchExp;
+//     });
+
+//     // Convert experience fields from strings to numbers after filtering
+//     filteredCandidates.forEach((candidate) => {
+//       if (typeof candidate.exp === 'string') {
+//         candidate.exp = parseFloat(candidate.exp);
+//       }
+//     });
+
+//     // Return the filtered candidates
+//     res.status(200).json(filteredCandidates);
+//   } catch (error) {
+//     console.error("Error filtering candidates:", error);
+//     res.status(500).json({ message: "Failed to filter candidates", error: error.message });
+//   }
+// });
+
+
+
+// prof and exp are alone not working
+
+// router.get('/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?', async (req, res) => {
+//   const { clientId, processId, lang, proficiencyLevels, exp } = req.params;  // Changed from req.query to req.params
+
+//   try {
+//     // Find the client by clientId
+//     const client = await ClientSheet.findById(clientId);
+
+//     if (!client) {
+//       return res.status(404).json({ message: "Client not found" });
+//     }
+
+//     // Find the process by processId
+//     const process = client.clientProcess.id(processId);
+
+//     if (!process) {
+//       return res.status(404).json({ message: "Process not found" });
+//     }
+
+//     // Initialize filter conditions for candidates
+//     let filterConditions = {};
+
+//     // Handle Language and Proficiency Filter
+//     if (lang || proficiencyLevels) {
+//       filterConditions.language = { $elemMatch: {} };
+
+//       if (lang) {
+//         filterConditions.language.$elemMatch.lang = lang;
+//       }
+
+//       if (proficiencyLevels) {
+//         const proficiencyLevelsArray = proficiencyLevels.split(","); // Split the comma-separated proficiency levels
+//         filterConditions.language.$elemMatch.proficiencyLevel = {
+//           $in: proficiencyLevelsArray,
+//         };
+//       }
+//     }
+
+//     // Handle Experience Filter
+//     if (exp) {
+//       if (exp.toLowerCase() === 'fresher' || exp === '0') {
+//         filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };  // Ensure 0 is treated as a string
+//       } else if (exp.includes('-')) {
+//         // Handle range filtering like '1-3'
+//         const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+//         if (isNaN(min) || isNaN(max)) {
+//           return res.status(400).json({ error: "Invalid experience range format" });
+//         }
+
+//         // Ensure numeric comparison
+//         filterConditions.exp = {
+//           $gte: min,
+//           $lte: max,
+//         };
+//       } else if (exp === '10+') {
+//         // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+//         filterConditions.exp = { $gte: 10.1 };
+//       }
+//     }
+
+//     // Log the constructed filter for debugging
+//     console.log("Constructed filter:", JSON.stringify(filterConditions, null, 2));
+
+//     // Apply the filters to the interestedCandidates
+//     const filteredCandidates = process.interestedCandidates.filter((candidate) => {
+//       // Apply the language and proficiency filter if it exists
+//       let matchLang = true;
+//       let matchProficiency = true;
+//       if (filterConditions.language) {
+//         matchLang = filterConditions.language.$elemMatch.lang
+//           ? candidate.language.some((l) => l.lang === filterConditions.language.$elemMatch.lang)
+//           : true;
+//         matchProficiency = filterConditions.language.$elemMatch.proficiencyLevel
+//           ? candidate.language.some((l) =>
+//               filterConditions.language.$elemMatch.proficiencyLevel.$in.includes(l.proficiencyLevel)
+//             )
+//           : true;
+//       }
+
+//       // Apply the experience filter if it exists
+//       let matchExp = true;
+//       if (filterConditions.exp) {
+//         if (filterConditions.exp.$in) {
+//           matchExp = filterConditions.exp.$in.includes(candidate.exp);
+//         } else if (filterConditions.exp.$gte !== undefined && filterConditions.exp.$lte !== undefined) {
+//           matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte &&
+//             parseFloat(candidate.exp) <= filterConditions.exp.$lte;
+//         } else if (filterConditions.exp.$gte !== undefined) {
+//           matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte;
+//         }
+//       }
+
+//       return matchLang && matchProficiency && matchExp;
+//     });
+
+//     // Convert experience fields from strings to numbers after filtering
+//     filteredCandidates.forEach((candidate) => {
+//       if (typeof candidate.exp === 'string') {
+//         candidate.exp = parseFloat(candidate.exp);
+//       }
+//     });
+
+//     // Return the filtered candidates
+//     res.status(200).json(filteredCandidates);
+//   } catch (error) {
+//     console.error("Error filtering candidates:", error);
+//     res.status(500).json({ message: "Failed to filter candidates", error: error.message });
+//   }
+// });
+
+
+// prof and exp are alone not working
+router.get('/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?', async (req, res) => {
+  const { clientId, processId, lang, proficiencyLevels, exp } = req.params;  // Changed from req.query to req.params
+
+  try {
+    // Find the client by clientId
+    const client = await ClientSheet.findById(clientId);
+
+    if (!client) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    // Find the process by processId
+    const process = client.clientProcess.id(processId);
+
+    if (!process) {
+      return res.status(404).json({ message: "Process not found" });
+    }
+
+    // Initialize filter conditions for candidates
+    let filterConditions = {};
+
+    // Handle Language and Proficiency Filter
+    if (lang || proficiencyLevels) {
+      filterConditions.language = { $elemMatch: {} };
+
+      if (lang) {
+        filterConditions.language.$elemMatch.lang = lang;
+      }
+
+      if (proficiencyLevels) {
+        const proficiencyLevelsArray = proficiencyLevels.split(","); // Split the comma-separated proficiency levels
+        filterConditions.language.$elemMatch.proficiencyLevel = {
+          $in: proficiencyLevelsArray,
+        };
+      }
+    }
+
+    // Handle Experience Filter
+    if (exp) {
+      if (exp.toLowerCase() === 'fresher' || exp === '0') {
+        filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };  // Ensure 0 is treated as a string
+      } else if (exp.includes('-')) {
+        // Handle range filtering like '1-3'
+        const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+
+        if (isNaN(min) || isNaN(max)) {
+          return res.status(400).json({ error: "Invalid experience range format" });
+        }
+
+        // Ensure numeric comparison
+        filterConditions.exp = {
+          $gte: min,
+          $lte: max,
+        };
+      } else if (exp === '10+') {
+        // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+        filterConditions.exp = { $gte: 10.1 };
+      }
+    }
+
+    // Log the constructed filter for debugging
+    console.log("Constructed filter:", JSON.stringify(filterConditions, null, 2));
+
+    // Apply the filters to the interestedCandidates
+    const filteredCandidates = process.interestedCandidates.filter((candidate) => {
+      // Apply the language and proficiency filter if it exists
+      let matchLang = true;
+      let matchProficiency = true;
+      if (filterConditions.language) {
+        matchLang = filterConditions.language.$elemMatch.lang
+          ? candidate.language.some((l) => l.lang === filterConditions.language.$elemMatch.lang)
+          : true;
+        matchProficiency = filterConditions.language.$elemMatch.proficiencyLevel
+          ? candidate.language.some((l) =>
+              filterConditions.language.$elemMatch.proficiencyLevel.$in.includes(l.proficiencyLevel)
+            )
+          : true;
+      }
+
+      // Apply the experience filter if it exists
+      let matchExp = true;
+      if (filterConditions.exp) {
+        if (filterConditions.exp.$in) {
+          matchExp = filterConditions.exp.$in.includes(candidate.exp);
+        } else if (filterConditions.exp.$gte !== undefined && filterConditions.exp.$lte !== undefined) {
+          matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte &&
+            parseFloat(candidate.exp) <= filterConditions.exp.$lte;
+        } else if (filterConditions.exp.$gte !== undefined) {
+          matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte;
+        }
+      }
+
+      return matchLang && matchProficiency && matchExp;
+    });
+
+    // Convert experience fields from strings to numbers after filtering
+    filteredCandidates.forEach((candidate) => {
+      if (typeof candidate.exp === 'string') {
+        candidate.exp = parseFloat(candidate.exp);
+      }
+    });
+
+    // Return the filtered candidates
+    res.status(200).json(filteredCandidates);
+  } catch (error) {
+    console.error("Error filtering candidates:", error);
+    res.status(500).json({ message: "Failed to filter candidates", error: error.message });
+  }
+});
+
+
+
+
+
+
+// router.get(
+//   "/clients/:clientId/process/:processId/filterLangFilter",
+//   async (req, res) => {
+//     const { clientId, processId } = req.params;
+//     const { lang, proficiencyLevel } = req.query;
+
+//     try {
+//       const client = await ClientSheet.findById(clientId);
+
+//       if (!client) {
+//         return res.status(404).json({ message: "Client not found" });
+//       }
+
+//       const process = client.clientProcess.id(processId);
+
+//       if (!process) {
+//         return res.status(404).json({ message: "Process not found" });
+//       }
+
+//       // Construct the filter for $elemMatch
+//       let candidateFilter = (candidate) => true;
+
+//       if (lang || proficiencyLevel) {
+//         candidateFilter = (candidate) => {
+//           const matchLang = lang
+//             ? candidate.language.some((l) => l.lang === lang)
+//             : true;
+//           const matchProficiency = proficiencyLevel
+//             ? candidate.language.some((l) =>
+//                 proficiencyLevel.split(",").includes(l.proficiencyLevel)
+//               )
+//             : true;
+//           return matchLang && matchProficiency;
+//         };
+//       }
+
+//       // Filter candidates based on language and proficiency
+//       const filteredCandidates = process.interestedCandidates.filter(
+//         (candidate) => candidateFilter(candidate)
+//       );
+
+//       res.status(200).json(filteredCandidates);
+//     } catch (error) {
+//       console.error("Error filtering candidates:", error);
+//       res
+//         .status(500)
+//         .json({ message: "Failed to filter candidates", error: error.message });
+//     }
+//   }
+// );
+
+
+
+
+
+
+
+
+
+// adding lang and proficiency filter for interested candidate
+router.get(
+  "/clients/:clientId/process/:processId/interestedlangfilter",
+  async (req, res) => {
+    const { clientId, processId } = req.params;
+    const { lang, proficiencyLevel } = req.query;
+
+    try {
+      const client = await ClientSheet.findById(clientId);
+
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+
+      const process = client.clientProcess.id(processId);
+
+      if (!process) {
+        return res.status(404).json({ message: "Process not found" });
+      }
+
+      // Construct the filter for $elemMatch
+      let candidateFilter = (candidate) => true;
+
+      if (lang || proficiencyLevel) {
+        candidateFilter = (candidate) => {
+          const matchLang = lang
+            ? candidate.language.some((l) => l.lang === lang)
+            : true;
+          const matchProficiency = proficiencyLevel
+            ? candidate.language.some((l) =>
+                proficiencyLevel.split(",").includes(l.proficiencyLevel)
+              )
+            : true;
+          return matchLang && matchProficiency;
+        };
+      }
+
+      // Filter candidates based on language, proficiency, and interest
+      const filteredCandidates = process.interestedCandidates.filter(
+        (candidate) => {
+          return (
+            candidate.interested === "interested" && candidateFilter(candidate)
+          );
+        }
+      );
+
+      res.status(200).json(filteredCandidates);
+    } catch (error) {
+      console.error("Error filtering candidates:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to filter candidates", error: error.message });
+    }
+  }
+);
+
+
+
+
 // adding lang and proficiency filter for seleted candidate
 router.get("/selectedFilter", async (req, res) => {
   const { lang, proficiencyLevel } = req.query;
@@ -860,112 +1268,6 @@ router.get("/selectedFilter", async (req, res) => {
   }
 });
 
-// adding lang and proficiency filter for filtersheet
-router.get(
-  "/clients/:clientId/process/:processId/filterLangFilter",
-  async (req, res) => {
-    const { clientId, processId } = req.params;
-    const { lang, proficiencyLevel } = req.query;
 
-    try {
-      const client = await ClientSheet.findById(clientId);
-
-      if (!client) {
-        return res.status(404).json({ message: "Client not found" });
-      }
-
-      const process = client.clientProcess.id(processId);
-
-      if (!process) {
-        return res.status(404).json({ message: "Process not found" });
-      }
-
-      // Construct the filter for $elemMatch
-      let candidateFilter = (candidate) => true;
-
-      if (lang || proficiencyLevel) {
-        candidateFilter = (candidate) => {
-          const matchLang = lang
-            ? candidate.language.some((l) => l.lang === lang)
-            : true;
-          const matchProficiency = proficiencyLevel
-            ? candidate.language.some((l) =>
-                proficiencyLevel.split(",").includes(l.proficiencyLevel)
-              )
-            : true;
-          return matchLang && matchProficiency;
-        };
-      }
-
-      // Filter candidates based on language and proficiency
-      const filteredCandidates = process.interestedCandidates.filter(
-        (candidate) => candidateFilter(candidate)
-      );
-
-      res.status(200).json(filteredCandidates);
-    } catch (error) {
-      console.error("Error filtering candidates:", error);
-      res
-        .status(500)
-        .json({ message: "Failed to filter candidates", error: error.message });
-    }
-  }
-);
-
-// adding lang and proficiency filter for interested candidate
-router.get(
-  "/clients/:clientId/process/:processId/interestedlangfilter",
-  async (req, res) => {
-    const { clientId, processId } = req.params;
-    const { lang, proficiencyLevel } = req.query;
-
-    try {
-      const client = await ClientSheet.findById(clientId);
-
-      if (!client) {
-        return res.status(404).json({ message: "Client not found" });
-      }
-
-      const process = client.clientProcess.id(processId);
-
-      if (!process) {
-        return res.status(404).json({ message: "Process not found" });
-      }
-
-      // Construct the filter for $elemMatch
-      let candidateFilter = (candidate) => true;
-
-      if (lang || proficiencyLevel) {
-        candidateFilter = (candidate) => {
-          const matchLang = lang
-            ? candidate.language.some((l) => l.lang === lang)
-            : true;
-          const matchProficiency = proficiencyLevel
-            ? candidate.language.some((l) =>
-                proficiencyLevel.split(",").includes(l.proficiencyLevel)
-              )
-            : true;
-          return matchLang && matchProficiency;
-        };
-      }
-
-      // Filter candidates based on language, proficiency, and interest
-      const filteredCandidates = process.interestedCandidates.filter(
-        (candidate) => {
-          return (
-            candidate.interested === "interested" && candidateFilter(candidate)
-          );
-        }
-      );
-
-      res.status(200).json(filteredCandidates);
-    } catch (error) {
-      console.error("Error filtering candidates:", error);
-      res
-        .status(500)
-        .json({ message: "Failed to filter candidates", error: error.message });
-    }
-  }
-);
 
 export default router;
