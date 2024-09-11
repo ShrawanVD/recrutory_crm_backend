@@ -62,6 +62,8 @@ const ClientSchema = new Schema({
           isProcessAssigned: { type: Boolean, default: false },
           createdBy: { type: String },
           lastUpdatedBy: { type: String },
+          createdById: { type: Schema.Types.ObjectId},
+          lastUpdatedById: { type: Schema.Types.ObjectId}
         }, 
       ],
       clientProcessCandReq: { type: String },

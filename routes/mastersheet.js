@@ -173,6 +173,29 @@ router.get("/", (req, res) => {
   });
 });
 
+
+// update particular field ( for future ref -> this api can come handy  -. make sure u change the bearer in headers section as: key: authorization)
+router.put('/update', verifyToken, async (req, res) => {
+  try {
+    const result = await Mastersheet.updateMany(
+      { feedback: 'Not Intrested - Under Qualified' }, 
+      { $set: { feedback: 'NI - Under Qualified' } }
+    );
+
+    res.status(200).json({
+      message: 'Successfully updated the field',
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error('Error updating the fields:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+
+
 // Middleware for verifying the token
 function verifyToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
@@ -182,6 +205,7 @@ function verifyToken(req, res, next) {
     req.token = token;
     next();
   } else {
+    console.error('Forbidden: Invalid login - No Authorization header provided');
     res.status(403).json({ message: "Forbidden: Invalid login" });
   }
 }
@@ -195,6 +219,9 @@ router.post("/candidates", verifyToken, async (req, res) => {
 
     const createdBy = authData.username;
     console.log("created by in the candidate create function is: " + createdBy);
+
+    const createdById = authData._id;
+    console.log("createdby id is: " + createdById);
 
     try {
       // Normalize phone number (trim spaces, handle country codes, remove internal spaces/dashes)
@@ -225,7 +252,9 @@ router.post("/candidates", verifyToken, async (req, res) => {
         ...req.body,
         phone,
         email: normalizeEmail(req.body.email),
+        assignProcess: null,
         createdBy,
+        createdById,
       });
 
       const newCandidate = await candidate.save();
@@ -363,6 +392,7 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       return res.status(403).json({message:"Forbidden: Invalid Token"});
     }
     const lastUpdatedBy = authData.username;
+    const lastUpdatedById = authData._id;
 
     try {
       const candidate = await Mastersheet.findById(req.params.id);
@@ -372,6 +402,7 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
   
       // retain the created by field
       const createdBy = candidate.createdBy;
+      const createdById = candidate.createdById;
   
       // Normalize phone number
       const normalizePhone = (phone) => {
@@ -446,6 +477,8 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.source = req.body.source || candidate.source;
       candidate.createdBy = createdBy;
       candidate.lastUpdatedBy = lastUpdatedBy;
+      candidate.createdById = createdById;
+      candidate.lastUpdatedById = lastUpdatedById;
   
       if (isAssignProcessChanged) {
         // If assignProcess is changed
@@ -492,6 +525,8 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
             interested: candidate.interested,
             createdBy: createdBy,
             lastUpdatedBy: lastUpdatedBy,
+            createdById: createdById,
+            lastUpdatedById: lastUpdatedById,
             isProcessAssigned: true,
           };
   
@@ -546,7 +581,9 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
               interestedCandidate.voiceNonVoice = candidate.voiceNonVoice;
               interestedCandidate.source = candidate.source;
               interestedCandidate.createdBy = createdBy;
-              interestedCandidate.lastUpdatedBy = lastUpdatedBy
+              interestedCandidate.lastUpdatedBy = lastUpdatedBy;
+              interestedCandidate.createdById = createdById;
+              interestedCandidate.lastUpdatedById = lastUpdatedById;
             }
           }
           await client.save();
@@ -569,13 +606,13 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
 
 
 // Updating (POST) and shifting MULTIPLE candidates to intCandidate[] of the process (just assignedRecruiter option)
+
 router.post("/candidates/assign-process", async (req, res) => {
   try {
     const { ids, newAssignProcess } = req.body;
 
     // Split the newAssignProcess to get client and process details
-    const [clientName, processName, processLanguage] =
-      newAssignProcess.split(" - ");
+    const [clientName, processName, processLanguage] = newAssignProcess.split(" - ");
 
     // Fetch the client and process
     const client = await ClientSheet.findOne({
@@ -594,9 +631,7 @@ router.post("/candidates/assign-process", async (req, res) => {
     let duplicateCandidates = [];
 
     for (let candidate of candidates) {
-
-// Ensure createdBy and lastUpdatedBy are handled properly
-const { createdBy, lastUpdatedBy } = candidate;
+      const { createdBy, lastUpdatedBy, createdById, lastUpdatedById, date, feedback } = candidate;
 
       // Create a new candidate object
       const newCandidate = {
@@ -623,11 +658,17 @@ const { createdBy, lastUpdatedBy } = candidate;
         company: candidate.company,
         voiceNonVoice: candidate.voiceNonVoice,
         source: candidate.source,
-        interested: candidate.interested,
+        interested: feedback === "Interested" ? "interested" : null, // Set interested
+        markedInterestedDate: feedback === "Interested" ? date : null, // Set markedInterestedDate
+        assignedRecruiter: feedback === "Interested" ? createdBy : null, // Set assignedRecruiter
+        assignedRecruiterId: feedback === "Interested" ? createdById : null, // Keep it null for now
+        assignedRecruiterDate: feedback === "Interested" ? date : null, // Set assignedRecruiterDate
         status: candidate.status,
         isProcessAssigned: true, // Set isProcessAssigned to true
         createdBy: createdBy || null, // Ensure createdBy is copied if available
         lastUpdatedBy: lastUpdatedBy || null, // Ensure lastUpdatedBy is copied if available
+        createdById: createdById || null, // Ensure createdById is copied if available
+        lastUpdatedById: lastUpdatedById || null, // Ensure lastUpdatedById is copied if available
       };
 
       // Find the process
@@ -675,6 +716,114 @@ const { createdBy, lastUpdatedBy } = candidate;
     res.status(500).json({ message: err.message });
   }
 });
+
+
+// router.post("/candidates/assign-process", async (req, res) => {
+//   try {
+//     const { ids, newAssignProcess } = req.body;
+
+//     // Split the newAssignProcess to get client and process details
+//     const [clientName, processName, processLanguage] =
+//       newAssignProcess.split(" - ");
+
+//     // Fetch the client and process
+//     const client = await ClientSheet.findOne({
+//       clientName,
+//       "clientProcess.clientProcessName": processName,
+//       "clientProcess.clientProcessLanguage": processLanguage,
+//     });
+
+//     if (!client) {
+//       return res.status(404).json({ message: "Client or process not found" });
+//     }
+
+//     // Find candidates by IDs
+//     const candidates = await Mastersheet.find({ _id: { $in: ids } });
+
+//     let duplicateCandidates = [];
+
+//     for (let candidate of candidates) {
+
+// // Ensure createdBy and lastUpdatedBy are handled properly
+// const { createdBy, lastUpdatedBy } = candidate;
+
+//       // Create a new candidate object
+//       const newCandidate = {
+//         candidateId: candidate._id,
+//         name: candidate.name,
+//         email: candidate.email,
+//         phone: candidate.phone,
+//         language: candidate.language,
+//         jbStatus: candidate.jbStatus,
+//         qualification: candidate.qualification,
+//         industry: candidate.industry,
+//         domain: candidate.domain,
+//         exp: candidate.exp,
+//         cLocation: candidate.cLocation,
+//         pLocation: candidate.pLocation,
+//         currentCTC: candidate.currentCTC,
+//         expectedCTC: candidate.expectedCTC,
+//         noticePeriod: candidate.noticePeriod,
+//         wfh: candidate.wfh,
+//         resumeLink: candidate.resumeLink,
+//         linkedinLink: candidate.linkedinLink,
+//         feedback: candidate.feedback,
+//         remark: candidate.remark,
+//         company: candidate.company,
+//         voiceNonVoice: candidate.voiceNonVoice,
+//         source: candidate.source,
+//         interested: candidate.interested,
+//         status: candidate.status,
+//         isProcessAssigned: true, // Set isProcessAssigned to true
+//         createdBy: createdBy || null, // Ensure createdBy is copied if available
+//         lastUpdatedBy: lastUpdatedBy || null, // Ensure lastUpdatedBy is copied if available
+//       };
+
+//       // Find the process
+//       const process = client.clientProcess.find(
+//         (p) =>
+//           p.clientProcessName === processName &&
+//           p.clientProcessLanguage === processLanguage
+//       );
+
+//       // Check if the candidate is already in the interestedCandidates array
+//       const isDuplicate = process.interestedCandidates.some(
+//         (c) => c.candidateId.toString() === candidate._id.toString()
+//       );
+
+//       if (!isDuplicate) {
+//         // Add new candidate to the process
+//         process.interestedCandidates.push(newCandidate);
+
+//         // Update candidate in the MasterSheet
+//         candidate.assignProcess = `${clientName} - ${processName} - ${processLanguage}`;
+//         candidate.isProcessAssigned = true; // Set isProcessAssigned to true in MasterSheet
+
+//         await candidate.save();
+//       } else {
+//         // Add to duplicate candidates list
+//         duplicateCandidates.push(candidate._id.toString());
+//       }
+//     }
+
+//     // Save the updated client process
+//     await client.save();
+
+//     if (duplicateCandidates.length > 0) {
+//       res.status(200).json({
+//         message:
+//           "Some candidates were not added because they are already assigned to this process",
+//         duplicateCandidates,
+//       });
+//     } else {
+//       res
+//         .status(200)
+//         .json({ message: "Candidates assigned to process successfully" });
+//     }
+//   } catch (err) {
+//     res.status(500).json({ message: err.message });
+//   }
+// });
 
 
 // import -> without duplicates (email and phone no) -> but not working for phone number
