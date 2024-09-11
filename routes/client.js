@@ -459,7 +459,7 @@ router.put(
           (candidate.industry = req.body.industry),
           (candidate.domain = req.body.domain),
           (candidate.exp = req.body.exp),
-          (candidate.cLocation = req.body.cLocation),
+          (candidate.cLocation = req.body.cLocation), 
           (candidate.pLocation = req.body.pLocation),
           (candidate.currentCTC = req.body.currentCTC),
           (candidate.expectedCTC = req.body.expectedCTC),
@@ -490,7 +490,10 @@ router.put(
         } else if (candidate.status === "Rejected") {
           // If interested is "interested" and status is "Rejected", isProcessAssigned should be false
           candidate.isProcessAssigned = false;
-        } else {
+        } else if (candidate.status === "selected"){
+          candidate.isProcessAssigned = false;
+        } 
+        else {
           // If interested is "interested" and status is not "Rejected", isProcessAssigned should be true
           candidate.isProcessAssigned = true;
         }
@@ -524,6 +527,7 @@ router.put(
           voiceNonVoice: req.body.voiceNonVoice,
           source: req.body.source,
           isProcessAssigned: candidate.isProcessAssigned,
+          assignProcess: (candidate.isProcessAssigned) ? req.body.assignProcess : null,
           createdBy: createdBy,
           lastUpdatedBy: lastUpdatedBy,
         };
