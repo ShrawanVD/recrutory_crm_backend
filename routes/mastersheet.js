@@ -5,6 +5,7 @@ import ClientSheet from "../models/Client.js";
 // const jwt = require('jsonwebtoken');
 import jwt from "jsonwebtoken"
 const secretKey = "secretKey";
+import mongoose from 'mongoose';
 
 
 const router = express.Router();
@@ -982,6 +983,113 @@ router.post("/candidates/assign-process", async (req, res) => {
 
 
 // upodate 2 -> duplicate not allowed on the basis of phone number
+// router.post("/candidate/import", async (req, res) => {
+//   try {
+//     const candidates = req.body.data;
+
+//     if (!Array.isArray(candidates)) {
+//       return res.status(400).json({ message: "Data should be an array" });
+//     }
+
+//     const normalizePhone = (phone) => {
+//       if (typeof phone !== 'string' && typeof phone !== 'number') return '';
+//       let normalizedPhone = typeof phone === 'number' ? String(phone) : phone.trim();
+//       const hasPlus = normalizedPhone.startsWith('+');
+//       normalizedPhone = normalizedPhone.replace(/[\s\-]/g, '');
+//       return hasPlus ? normalizedPhone : normalizedPhone.replace(/^\+/, '');
+//     };
+
+//     const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+
+//     const filteredCandidates = candidates.slice(1).map((candidate) => {
+//       const phone = normalizePhone(candidate[2]);
+//       const email = normalizeEmail(candidate[1]);
+
+//       const languages = [];
+//       if (candidate[3] || candidate[4] || candidate[5]) {
+//         const lTypes = candidate[3] ? candidate[3].split(',').map(item => item.trim()) : [null];
+//         const langs = candidate[4] ? candidate[4].split(',').map(item => item.trim()) : [null];
+//         const proficiencyLevels = candidate[5] ? candidate[5].split(',').map(item => item.trim()) : [null];
+
+//         for (let i = 0; i < Math.max(lTypes.length, langs.length, proficiencyLevels.length); i++) {
+//           languages.push({
+//             lType: lTypes[i] || null,
+//             lang: langs[i] || null,
+//             proficiencyLevel: proficiencyLevels[i] || null
+//           });
+//         }
+//       }
+
+//       return {
+//         name: candidate[0],
+//         email: email,
+//         phone: phone,
+//         language: languages,
+//         status: null,
+//         assignProcess: null,
+//         isProcessAssigned: false,
+//         interested: null,
+//         assignedRecruiter: null,
+//         jbStatus: candidate[6],
+//         qualification: candidate[7],
+//         industry: candidate[8],
+//         exp: candidate[9],
+//         domain: candidate[10],
+//         cLocation: candidate[11],
+//         pLocation: candidate[12],
+//         currentCTC: Number(candidate[13]) || 0,
+//         expectedCTC: Number(candidate[14]) || 0,
+//         noticePeriod: candidate[15],
+//         wfh: candidate[16],
+//         resumeLink: candidate[17],
+//         linkedinLink: candidate[18],
+//         feedback: candidate[19],
+//         remark: candidate[20],
+//         company: candidate[21],
+//         voiceNonVoice: candidate[22],
+//         source: candidate[23],
+//       };
+//     });
+
+//     const emails = filteredCandidates.map(candidate => candidate.email).filter(email => email !== null && email !== undefined);
+//     const phoneNumbers = filteredCandidates.map(candidate => candidate.phone);
+
+//     // Find existing candidates by normalized email or phone number
+//     const existingCandidates = await Mastersheet.find({
+//       $or: [
+//         { email: { $in: emails } },
+//         { phone: { $in: phoneNumbers } }
+//       ]
+//     });
+
+//     const existingEmails = new Set(existingCandidates.map(c => normalizeEmail(c.email)));
+//     const existingPhoneNumbers = new Set(existingCandidates.map(c => normalizePhone(c.phone)));
+
+//     // Capture duplicates and log them individually
+//     filteredCandidates.forEach(candidate => {
+//       if (candidate.phone && existingPhoneNumbers.has(candidate.phone)) {
+//         console.log(`Duplicate found: ${candidate.phone}`);
+//       }
+//     });
+
+//     // Filter out duplicates based on phone numbers
+//     const nonDuplicateCandidates = filteredCandidates.filter(candidate => 
+//       candidate.phone && !existingPhoneNumbers.has(candidate.phone)
+//     );
+
+//     // Insert non-duplicate candidates
+//     const result = await Mastersheet.insertMany(nonDuplicateCandidates);
+
+//     res.status(201).json({ message: "Data imported successfully", result });
+//   } catch (err) {
+//     console.error("Error saving the candidates:", err);
+//     res.status(500).json({ message: "Failed to create candidates", error: err.message });
+//   }
+// });
+
+
+
+// demo
 router.post("/candidate/import", async (req, res) => {
   try {
     const candidates = req.body.data;
@@ -998,11 +1106,15 @@ router.post("/candidate/import", async (req, res) => {
       return hasPlus ? normalizedPhone : normalizedPhone.replace(/^\+/, '');
     };
 
-    const normalizeEmail = (email) => typeof email === 'string' ? email.toLowerCase().trim() : email;
+    const normalizeEmail = (email) => (typeof email === 'string' ? email.toLowerCase().trim() : email);
 
     const filteredCandidates = candidates.slice(1).map((candidate) => {
       const phone = normalizePhone(candidate[2]);
       const email = normalizeEmail(candidate[1]);
+
+      // Convert `createdById` and `lastUpdatedById` to ObjectId, ensuring input is a valid string
+      const createdById = candidate[25] ? new mongoose.Types.ObjectId(candidate[25]) : null;
+      const lastUpdatedById = candidate[27] ? new mongoose.Types.ObjectId(candidate[27]) : null;
 
       const languages = [];
       if (candidate[3] || candidate[4] || candidate[5]) {
@@ -1047,6 +1159,11 @@ router.post("/candidate/import", async (req, res) => {
         company: candidate[21],
         voiceNonVoice: candidate[22],
         source: candidate[23],
+        createdBy: candidate[24], // Assuming createdBy is at index 24
+        createdById: createdById,
+        lastUpdatedBy: candidate[26], // Assuming lastUpdatedBy is at index 26
+        lastUpdatedById: lastUpdatedById,
+        date: candidate[28] ? new Date(candidate[28]) : new Date() // Assuming date is at index 28
       };
     });
 
@@ -1080,11 +1197,13 @@ router.post("/candidate/import", async (req, res) => {
     const result = await Mastersheet.insertMany(nonDuplicateCandidates);
 
     res.status(201).json({ message: "Data imported successfully", result });
+
   } catch (err) {
     console.error("Error saving the candidates:", err);
     res.status(500).json({ message: "Failed to create candidates", error: err.message });
   }
 });
+
 
 
 
