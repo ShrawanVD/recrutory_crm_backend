@@ -254,7 +254,7 @@ router.post("/candidates", verifyToken, async (req, res) => {
         // Set the creation date and taskDate to the current IST date
         date: currentISTDate,
         taskDate: currentISTDate,
-        regStatus: (req.body.regId) ? "Registered" : "Pending",
+        regStatus: req.body.regId ? "Registered" : "Pending",
         phone,
         email: normalizeEmail(req.body.email),
         assignProcess: null,
@@ -512,8 +512,6 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.regStatus = req.body.regStatus || candidate.regStatus;
       candidate.iaScore = req.body.iaScore || candidate.iaScore;
 
-
-
       if (isAssignProcessChanged) {
         // If assignProcess is changed
         console.log("AssignProcess changed");
@@ -572,8 +570,6 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
 
             regStatus: candidate.regStatus,
             iaScore: candidate.iaScore,
-
-
           };
 
           process.interestedCandidates.push(newCandidate);
@@ -665,8 +661,9 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
 
 router.post("/candidates/assign-process", async (req, res) => {
   try {
-    const { ids, newAssignProcess } = req.body;
-
+    // const { ids, newAssignProcess } = req.body;
+    const { ids, newAssignProcess, assignedRecruiter, assignedRecruiterId } =
+      req.body;
     // Split the newAssignProcess to get client and process details
     const [clientName, processName, processLanguage] =
       newAssignProcess.split(" - ");
@@ -724,8 +721,9 @@ router.post("/candidates/assign-process", async (req, res) => {
         source: candidate.source,
         interested: feedback === "Interested" ? "interested" : null, // Set interested
         markedInterestedDate: feedback === "Interested" ? date : null, // Set markedInterestedDate
-        assignedRecruiter: feedback === "Interested" ? createdBy : null, // Set assignedRecruiter
-        assignedRecruiterId: feedback === "Interested" ? createdById : null, // Keep it null for now
+        assignedRecruiter: feedback === "Interested" ? assignedRecruiter : null, // Set logged-in recruiter
+        assignedRecruiterId:
+          feedback === "Interested" ? assignedRecruiterId : null, // Set logged-in recruiter ID
         assignedRecruiterDate: feedback === "Interested" ? date : null, // Set assignedRecruiterDate
         status: candidate.status,
         isProcessAssigned: true, // Set isProcessAssigned to true
@@ -1422,52 +1420,29 @@ router.get("/filterCandidates", async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // daily task reporting:
-router.get('/reporting/:id', async (req, res) => {
+router.get("/reporting/:id", async (req, res) => {
   const { id } = req.params; // ID from frontend
   const currentDate = new Date(); // Get the current date
   const startOfDay = new Date(currentDate.setHours(0, 0, 0, 0)); // Start of current day
   const endOfDay = new Date(currentDate.setHours(23, 59, 59, 999)); // End of current day
-  
+
   try {
     // Fetch candidates where taskDate is today
     const candidates = await Mastersheet.find({
       taskDate: { $gte: startOfDay, $lte: endOfDay }, // Matching today's date
       $or: [
         { lastUpdatedById: new mongoose.Types.ObjectId(id) }, // Priority: lastUpdatedById matches
-        { lastUpdatedById: null, createdById: new mongoose.Types.ObjectId(id) } // Fallback: lastUpdatedById is null, createdById matches
-      ]
+        { lastUpdatedById: null, createdById: new mongoose.Types.ObjectId(id) }, // Fallback: lastUpdatedById is null, createdById matches
+      ],
     });
-    
+
     return res.status(200).json(candidates);
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: 'Server error' });
+    return res.status(500).json({ message: "Server error" });
   }
 });
-
-
-
-
-
-
-
-
-
 
 // ---------------------------------------------------------------------
 
