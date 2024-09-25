@@ -2,7 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import ClientSheet from "../models/Client.js";
 import Mastersheet from "../models/Mastersheet.js";
-import Users from "../models/Users.js";
+// import Users from "../models/Users.js";
 import moment from "moment-timezone";
 import jwt from "jsonwebtoken";
 const secretKey = "secretKey";
@@ -451,11 +451,11 @@ router.put(
         const createdBy = candidate.createdBy;
 
         // Update specific fields in the interested candidate[]
-        (candidate.name = req.body.name),
+          (candidate.name = req.body.name),
           (candidate.email = req.body.email),
           (candidate.phone = req.body.phone),
           (candidate.language = req.body.language);
-        (candidate.qualification = req.body.qualification),
+          (candidate.qualification = req.body.qualification),
           (candidate.industry = req.body.industry),
           (candidate.domain = req.body.domain),
           (candidate.exp = req.body.exp),
@@ -481,6 +481,16 @@ router.put(
         (candidate.createdBy = createdBy),
           console.log("Candidate Status:", candidate.status);
         console.log("Candidate Interested:", candidate.interested);
+
+
+        (candidate.regId = req.body.regId || candidate.regId);
+        (candidate.aadhar = req.body.aadhar || candidate.aadhar);
+        (candidate.empId = req.body.empId || candidate.empId);
+        (candidate.dob = req.body.dob || candidate.dob);
+        (candidate.father = req.body.father || candidate.father);
+
+        (candidate.regStatus = req.body.regStatus || candidate.regStatus);
+        (candidate.iaScore = req.body.iaScore || candidate.iaScore);
         
 
         // Immediately set isProcessAssigned based on status and interested values
@@ -530,6 +540,12 @@ router.put(
           assignProcess: (candidate.isProcessAssigned) ? req.body.assignProcess : null,
           createdBy: createdBy,
           lastUpdatedBy: lastUpdatedBy,
+
+          regId: req.body.regId,
+          aadhar: req.body.aadhar,
+          empId: req.body.empId,
+          dob: req.body.dob,
+          father: req.body.father,
         };
 
         // Find and update the candidate in the MasterSheet
@@ -1252,6 +1268,7 @@ router.get("/selectedFilter", async (req, res) => {
                 proficiencyLevel.split(",").includes(l.proficiencyLevel)
               );
             }
+
 
             if (matchLang && matchProficiency) {
               // Add candidate with enhanced data to the response array

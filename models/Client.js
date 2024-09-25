@@ -63,7 +63,17 @@ const ClientSchema = new Schema({
           createdBy: { type: String },
           lastUpdatedBy: { type: String },
           createdById: { type: Schema.Types.ObjectId},
-          lastUpdatedById: { type: Schema.Types.ObjectId}
+          lastUpdatedById: { type: Schema.Types.ObjectId},
+
+          regId: {type: String},
+          aadhar: {type: String},
+          empId: {type: String},
+          dob: {type: Date},
+          father: {type: String},
+
+          regStatus: {type: String},
+          iaScore: {type: String},
+
         }, 
       ],
       clientProcessCandReq: { type: String },
