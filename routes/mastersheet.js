@@ -469,7 +469,7 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.name = req.body.name || candidate.name;
       candidate.email = normalizeEmail(req.body.email) || candidate.email;
       candidate.phone = normalizedPhone || candidate.phone;
-      candidate.status = req.body.status || candidate.status;
+      candidate.status = req.body.status;
       candidate.assignProcess = newAssignProcess;
       candidate.interested = req.body.interested || candidate.interested;
       candidate.assignedRecruiter =
@@ -478,13 +478,13 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.jbStatus = req.body.jbStatus || candidate.jbStatus;
       candidate.qualification =
         req.body.qualification || candidate.qualification;
-      candidate.industry = req.body.industry || candidate.industry;
-      candidate.domain = req.body.domain || candidate.domain;
-      candidate.exp = req.body.exp || candidate.exp;
-      candidate.cLocation = req.body.cLocation || candidate.cLocation;
-      candidate.pLocation = req.body.pLocation || candidate.pLocation;
-      candidate.currentCTC = req.body.currentCTC || candidate.currentCTC;
-      candidate.expectedCTC = req.body.expectedCTC || candidate.expectedCTC;
+      candidate.industry = req.body.industry;
+      candidate.domain = req.body.domain;
+      candidate.exp = req.body.exp;
+      candidate.cLocation = req.body.cLocation;
+      candidate.pLocation = req.body.pLocation;
+      candidate.currentCTC = req.body.currentCTC;
+      candidate.expectedCTC = req.body.expectedCTC;
       candidate.noticePeriod = req.body.noticePeriod || candidate.noticePeriod;
       candidate.wfh = req.body.wfh || candidate.wfh;
       candidate.resumeLink = req.body.resumeLink || candidate.resumeLink;
@@ -500,17 +500,17 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
       candidate.createdById = createdById;
       candidate.lastUpdatedById = lastUpdatedById;
 
-      candidate.regId = req.body.regId || candidate.regId;
-      candidate.aadhar = req.body.aadhar || candidate.aadhar;
-      candidate.empId = req.body.empId || candidate.empId;
+      candidate.regId = req.body.regId;
+      candidate.aadhar = req.body.aadhar;
+      candidate.empId = req.body.empId;
       candidate.dob = req.body.dob || candidate.dob;
-      candidate.father = req.body.father || candidate.father;
+      candidate.father = req.body.father;
 
       candidate.taskDate = currentISTDate;
       candidate.lastUpdateDate = currentISTDate;
 
-      candidate.regStatus = req.body.regStatus || candidate.regStatus;
-      candidate.iaScore = req.body.iaScore || candidate.iaScore;
+      candidate.regStatus = req.body.regStatus;
+      candidate.iaScore = req.body.iaScore;
 
       if (isAssignProcessChanged) {
         // If assignProcess is changed
