@@ -169,7 +169,92 @@ router.get("/", (req, res) => {
   });
 });
 
-// update particular field ( for future ref -> this api can come handy  -. make sure u change the bearer in headers section as: key: authorization)
+// -------------------------- for updating the ms sheets ---------------------------------------------
+
+//( for future ref -> these following apis can come handy  -. make sure u change the bearer in headers section as: key: authorization)
+
+// Find duplicate entries by name and phone
+router.get("/find-duplicates", verifyToken, async (req, res) => {
+  try {
+    const duplicates = await Mastersheet.aggregate([
+      {
+        $group: {
+          _id: { phone: "$email" },
+          // _id: { phone: "$phone" },
+          // _id: { name: "$name", phone: "$phone" },
+          count: { $sum: 1 },
+          docs: { $push: "$_id" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ]);
+
+    res.status(200).json({
+      message: "Duplicate entries found",
+      duplicates: duplicates,
+    });
+  } catch (error) {
+    console.error("Error finding duplicates:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Remove duplicate entries, keeping only one for each name and phone
+router.delete("/remove-duplicates", verifyToken, async (req, res) => {
+  try {
+    const duplicates = await Mastersheet.aggregate([
+      {
+        $group: {
+          _id: { name: "$name", phone: "$phone" },
+          count: { $sum: 1 },
+          docs: { $push: "$_id" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+    ]);
+
+    // Loop through duplicates and remove all but one
+    for (let duplicate of duplicates) {
+      const idsToRemove = duplicate.docs.slice(1); // Keep the first one, remove the rest
+      await Mastersheet.deleteMany({ _id: { $in: idsToRemove } });
+    }
+
+    res.status(200).json({
+      message: "Successfully removed duplicate entries",
+      totalRemoved: duplicates.reduce(
+        (sum, duplicate) => sum + (duplicate.docs.length - 1),
+        0
+      ),
+    });
+  } catch (error) {
+    console.error("Error removing duplicates:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// update candidates where assignProcess = "Teleperformance - Hopper - French" and isProcessAssigned = true
+router.put("/update-process", verifyToken, async (req, res) => {
+  try {
+    const result = await Mastersheet.updateMany(
+      {
+        assignProcess: "Teleperformance - Hopper - French",
+        isProcessAssigned: true,
+      },
+      { $set: { assignProcess: null, isProcessAssigned: false } }
+    );
+
+    res.status(200).json({
+      message: "Successfully updated the candidates",
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error updating the candidates:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// update particular field
 router.put("/update", verifyToken, async (req, res) => {
   try {
     const result = await Mastersheet.updateMany(
@@ -189,6 +274,9 @@ router.put("/update", verifyToken, async (req, res) => {
 });
 
 // Middleware for verifying the token
+
+// ----------------------------------------------------------------------------------------------------
+
 function verifyToken(req, res, next) {
   const bearerHeader = req.headers["authorization"];
   if (typeof bearerHeader !== "undefined") {
@@ -390,7 +478,7 @@ router.delete("/candidates/:id", async (req, res) => {
   }
 });
 
-// PUT and shifting candidate to the intCandidate[] of the process from the edit button at the end
+// PUT from the edit button at the end
 router.put("/candidates/:id", verifyToken, async (req, res) => {
   jwt.verify(req.token, secretKey, async (err, authData) => {
     if (err) {
@@ -662,11 +750,19 @@ router.put("/candidates/:id", verifyToken, async (req, res) => {
 router.post("/candidates/assign-process", async (req, res) => {
   try {
     // const { ids, newAssignProcess } = req.body;
-    const { ids, newAssignProcess, assignedRecruiter, assignedRecruiterId } =
-      req.body;
+    const {
+      ids,
+      newAssignProcess,
+      assignedRecruiter,
+      assignedRecruiterId,
+      loginedRole,
+    } = req.body;
     // Split the newAssignProcess to get client and process details
     const [clientName, processName, processLanguage] =
       newAssignProcess.split(" - ");
+
+      // get current date
+      const currentDateInIST = getCurrentISTDate();
 
     // Fetch the client and process
     const client = await ClientSheet.findOne({
@@ -693,6 +789,16 @@ router.post("/candidates/assign-process", async (req, res) => {
         date,
         feedback,
       } = candidate;
+
+      // Set assignedRecruiter based on feedback and role
+      const finalAssignedRecruiter =
+        feedback === "Interested" && loginedRole === "Recruiter"
+          ? assignedRecruiter
+          : null;
+
+      const finalAssignedRecruiterId = feedback === "Interested" && loginedRole === "Recruiter" ? assignedRecruiterId : null;
+
+      const finalAssignedRecruiterDate = feedback === "Interested" && loginedRole === "Recruiter" ? currentDateInIST : null;
 
       // Create a new candidate object
       const newCandidate = {
@@ -721,10 +827,9 @@ router.post("/candidates/assign-process", async (req, res) => {
         source: candidate.source,
         interested: feedback === "Interested" ? "interested" : null, // Set interested
         markedInterestedDate: feedback === "Interested" ? date : null, // Set markedInterestedDate
-        assignedRecruiter: feedback === "Interested" ? assignedRecruiter : null, // Set logged-in recruiter
-        assignedRecruiterId:
-          feedback === "Interested" ? assignedRecruiterId : null, // Set logged-in recruiter ID
-        assignedRecruiterDate: feedback === "Interested" ? date : null, // Set assignedRecruiterDate
+        assignedRecruiter: finalAssignedRecruiter, // Set logged-in recruiter
+        assignedRecruiterId: finalAssignedRecruiterId, // Set logged-in recruiter ID
+        assignedRecruiterDate: finalAssignedRecruiterDate, // Set assignedRecruiterDate
         status: candidate.status,
         isProcessAssigned: true, // Set isProcessAssigned to true
         createdBy: createdBy || null, // Ensure createdBy is copied if available

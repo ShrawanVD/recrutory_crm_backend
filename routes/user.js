@@ -209,41 +209,6 @@ router.put("/users/:id", async (req, res) => {
   }
 });
 
-// router.put("/users/:id", async (req,res) => {
-
-//   try {
-
-//     const { id } = req.params;
-//     const user = await Users.findById(id);
-
-//     if(!user){
-//       res.status(404).json({
-//         message: "User not found"
-//       });
-//     }
-
-//     // crypt the password before updating
-//     const orgPassword = req.body.password || user.password;
-//     const hashedPassword = await bcrypt.hash(orgPassword, 10);
-
-//     // updating fields
-//     user.username = req.body.username || user.username;
-//     user.password = hashedPassword;
-//     user.role = req.body.role || user.role;
-
-//     // save the user
-//     await user.save();
-
-//     res.status(200).json({
-//       message: "User Updated Successfully"
-//     });
-
-//   } catch (err) {
-//     res.status(500).json({message: err.message});
-//   }
-
-// })
-
 // ---------------------- user specific properties -------------------------------------
 
 // Fetch candidates assigned to a particular recruiter
@@ -377,107 +342,6 @@ router.get("/filterCandidateRecruiter", async (req, res) => {
   }
 });
 
-// PUT request for handling Interested and not interested status by the recruiter
-
-
-// router.put("/update-status", async (req, res) => {
-//   const { clientId, clientProcessId, candidateId, interestedStatus } = req.body;
-
-//   if (!candidateId || !interestedStatus) {
-//     return res
-//       .status(400)
-//       .json({ message: "Candidate ID and interestedStatus are required" });
-//   }
-
-//   try {
-//     // Find the client
-//     const client = await ClientSheet.findById(clientId);
-//     console.log("Client ID is: " + clientId);
-
-//     if (!client) {
-//       return res.status(404).json({ message: "Client not found" });
-//     }
-
-//     // Find the process within the client
-//     const process = client.clientProcess.id(clientProcessId);
-
-//     if (!process) {
-//       return res.status(404).json({ message: "Process not found" });
-//     }
-
-//     // Find the interested candidate within the process
-//     const candidate = process.interestedCandidates.id(candidateId);
-
-//     if (!candidate) {
-//       return res
-//         .status(404)
-//         .json({ message: "Candidate not found in the process" });
-//     }
-
-//     const oldInterestedStatus = candidate.interested;
-//     candidate.interested = interestedStatus;
-
-//     if (
-//       interestedStatus === "interested" &&
-//       oldInterestedStatus !== "interested"
-//     ) {
-//       candidate.markedInterestedDate = moment()
-//         .tz("Asia/Kolkata")
-//         .format("YYYY-MM-DD HH:mm:ss");
-//     } else if (interestedStatus !== "interested") {
-//       candidate.interested = null;
-//       candidate.markedInterestedDate = null;
-
-//       if (candidate.feedback === "" && candidate.remark === "") {
-//         return res.status(404).json({
-//           message:
-//             "Please provide the feedback and remark for not being interested",
-//         });
-//       } else {
-//         // Move remark and feedback to Mastersheet
-//         const mastersheetCandidate = await Mastersheet.findById(
-//           candidate.candidateId
-//         );
-
-//         if (mastersheetCandidate) {
-//           console.log("in if condition");
-//           mastersheetCandidate.remark = candidate.remark;
-//           mastersheetCandidate.feedback = candidate.feedback;
-
-//           // Check the current type and value of assignProcess before updating it
-//           console.log(
-//             "Current assignProcess value before setting to null:",
-//             JSON.stringify(mastersheetCandidate.assignProcess, null, 2) // Use JSON.stringify for better logging
-//           );
-
-//           mastersheetCandidate.isProcessAssigned = false;
-//           mastersheetCandidate.assignProcess = null;
-
-//           // Save the updated master candidate
-//           await mastersheetCandidate.save();
-
-//           // Delete the candidate from the process
-//           await candidate.deleteOne();
-//         } else {
-//           console.error(
-//             "Mastersheet candidate not found for ID:",
-//             candidate.candidateId
-//           );
-//         }
-//       }
-//     }
-
-//     // Save the client irrespective of the update being interested or not interested
-//     await client.save();
-
-//     res
-//       .status(200)
-//       .json({ message: "Candidate interest status updated successfully" });
-//   } catch (error) {
-//     console.error("Error updating candidate interest status:", error);
-//     res.status(500).json({ message: "Internal server error", error });
-//   }
-// });
 
 router.put("/update-status", async (req, res) => {
   const { clientId, clientProcessId, candidateId, interestedStatus } = req.body;
@@ -569,3 +433,42 @@ router.put("/update-status", async (req, res) => {
 });
 
 export default router;
+
+
+
+
+
+// router.put("/users/:id", async (req,res) => {
+
+//   try {
+
+//     const { id } = req.params;
+//     const user = await Users.findById(id);
+
+//     if(!user){
+//       res.status(404).json({
+//         message: "User not found"
+//       });
+//     }
+
+//     // crypt the password before updating
+//     const orgPassword = req.body.password || user.password;
+//     const hashedPassword = await bcrypt.hash(orgPassword, 10);
+
+//     // updating fields
+//     user.username = req.body.username || user.username;
+//     user.password = hashedPassword;
+//     user.role = req.body.role || user.role;
+
+//     // save the user
+//     await user.save();
+
+//     res.status(200).json({
+//       message: "User Updated Successfully"
+//     });
+
+//   } catch (err) {
+//     res.status(500).json({message: err.message});
+//   }
+
+// })

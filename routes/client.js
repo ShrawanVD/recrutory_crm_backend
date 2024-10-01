@@ -5,9 +5,15 @@ import Mastersheet from "../models/Mastersheet.js";
 // import Users from "../models/Users.js";
 import moment from "moment-timezone";
 import jwt from "jsonwebtoken";
+
 const secretKey = "secretKey";
 
 const router = express.Router();
+
+// function to get the current date in IST
+const getCurrentISTDate = () => {
+  return moment().tz("Asia/Kolkata").format("YYYY-MM-DD HH:mm:ss");
+};
 
 // checking api
 router.get("/", (req, res) => {
@@ -335,6 +341,60 @@ router.get("/process-options", async (req, res) => {
 
 // ----------------- PUT FOR PROCESS ---------------------------
 
+// find the particular candidate accross every process:
+router.get('/candidate', async (req, res) => {
+  try {
+    // Extract candidateId from request body
+    const { candidateId } = req.body;
+
+    // Check if candidateId is provided
+    if (!candidateId) {
+      return res.status(400).json({ message: 'Candidate ID is required' });
+    }
+
+    // Validate candidateId format (optional)
+    if (!mongoose.Types.ObjectId.isValid(candidateId)) {
+      return res.status(400).json({ message: 'Invalid Candidate ID format' });
+    }
+
+    // Query to search for the candidate across all processes
+    const clientData = await ClientSheet.find({
+      'clientProcess.interestedCandidates.candidateId': candidateId,
+    }, {
+      'clientProcess.$': 1 // Project only the matched client processes
+    });
+
+    if (!clientData || clientData.length === 0) {
+      return res.status(404).json({ message: 'Candidate not found' });
+    }
+
+    // Create an array to store results with process names
+    let results = [];
+
+    // Loop through all the returned client processes to find the candidate
+    clientData.forEach(client => {
+      client.clientProcess.forEach(process => {
+        const candidate = process.interestedCandidates.find(c => c.candidateId.toString() === candidateId);
+
+        if (candidate) {
+          // Add candidate and process information to the results array
+          results.push({
+            ...candidate._doc, // Spread all the candidate data
+            processName: process.clientProcessName // Add process name to the result
+          });
+        }
+      });
+    });
+
+    // Send the filtered results back
+    res.status(200).json(results);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // PUT request to update process details other than candidates
 router.put("/clients/:clientId/processes/:processId", async (req, res) => {
   try {
@@ -424,6 +484,8 @@ router.put(
       try {
         const { clientId, processId, candidateId } = req.params;
 
+        console.log("inside the put function of client sheet");
+
         // Find the client
         const client = await ClientSheet.findById(clientId);
 
@@ -450,16 +512,19 @@ router.put(
         // retain the created by field
         const createdBy = candidate.createdBy;
 
+        // get the current date
+        const currentISTDate = getCurrentISTDate();
+
         // Update specific fields in the interested candidate[]
-          (candidate.name = req.body.name),
+        (candidate.name = req.body.name),
           (candidate.email = req.body.email),
           (candidate.phone = req.body.phone),
           (candidate.language = req.body.language);
-          (candidate.qualification = req.body.qualification),
+        (candidate.qualification = req.body.qualification),
           (candidate.industry = req.body.industry),
           (candidate.domain = req.body.domain),
           (candidate.exp = req.body.exp),
-          (candidate.cLocation = req.body.cLocation), 
+          (candidate.cLocation = req.body.cLocation),
           (candidate.pLocation = req.body.pLocation),
           (candidate.currentCTC = req.body.currentCTC),
           (candidate.expectedCTC = req.body.expectedCTC),
@@ -482,16 +547,14 @@ router.put(
           console.log("Candidate Status:", candidate.status);
         console.log("Candidate Interested:", candidate.interested);
 
+        candidate.regId = req.body.regId || candidate.regId;
+        candidate.aadhar = req.body.aadhar || candidate.aadhar;
+        candidate.empId = req.body.empId || candidate.empId;
+        candidate.dob = req.body.dob || candidate.dob;
+        candidate.father = req.body.father || candidate.father;
 
-        (candidate.regId = req.body.regId || candidate.regId);
-        (candidate.aadhar = req.body.aadhar || candidate.aadhar);
-        (candidate.empId = req.body.empId || candidate.empId);
-        (candidate.dob = req.body.dob || candidate.dob);
-        (candidate.father = req.body.father || candidate.father);
-
-        (candidate.regStatus = req.body.regStatus || candidate.regStatus);
-        (candidate.iaScore = req.body.iaScore || candidate.iaScore);
-        
+        candidate.regStatus = req.body.regStatus || candidate.regStatus;
+        candidate.iaScore = req.body.iaScore || candidate.iaScore;
 
         // Immediately set isProcessAssigned based on status and interested values
         if (candidate.interested !== "interested") {
@@ -500,10 +563,9 @@ router.put(
         } else if (candidate.status === "Rejected") {
           // If interested is "interested" and status is "Rejected", isProcessAssigned should be false
           candidate.isProcessAssigned = false;
-        } else if (candidate.status === "selected"){
+        } else if (candidate.status === "selected") {
           candidate.isProcessAssigned = false;
-        } 
-        else {
+        } else {
           // If interested is "interested" and status is not "Rejected", isProcessAssigned should be true
           candidate.isProcessAssigned = true;
         }
@@ -537,7 +599,9 @@ router.put(
           voiceNonVoice: req.body.voiceNonVoice,
           source: req.body.source,
           isProcessAssigned: candidate.isProcessAssigned,
-          assignProcess: (candidate.isProcessAssigned) ? req.body.assignProcess : null,
+          assignProcess: candidate.isProcessAssigned
+            ? req.body.assignProcess
+            : null,
           createdBy: createdBy,
           lastUpdatedBy: lastUpdatedBy,
 
@@ -546,6 +610,9 @@ router.put(
           empId: req.body.empId,
           dob: req.body.dob,
           father: req.body.father,
+
+          lastUpdateDate: currentISTDate,
+          taskDate: currentISTDate,
         };
 
         // Find and update the candidate in the MasterSheet
@@ -599,13 +666,14 @@ router.put(
 );
 
 // PUT request to handle multiple candidates, to assign a common recruiter (holds a function call for the updateRecruiterCounts function given below)
+
 router.put(
   "/clients/assign-recruiter/:clientId/:processId",
   async (req, res) => {
     const { clientId, processId } = req.params;
     const { ids, recruiterId, newAssignedRecruiter } = req.body;
 
-    if (!ids || !recruiterId || !newAssignedRecruiter) {
+    if (!ids) {
       return res.status(400).json({ message: "Invalid request body" });
     }
 
@@ -625,10 +693,6 @@ router.put(
         return res.status(404).json({ message: "Process not found" });
       }
 
-      // Convert recruiterId to ObjectId
-      const recruiterObjectId = new mongoose.Types.ObjectId(recruiterId);
-
-      // Convert candidate IDs to ObjectId
       const candidateObjectIds = ids.map(
         (id) => new mongoose.Types.ObjectId(id)
       );
@@ -638,19 +702,23 @@ router.put(
         .tz("Asia/Kolkata")
         .format("YYYY-MM-DD HH:mm:ss");
 
-      // Array to store IDs of candidates already assigned to the same recruiter
-      let alreadyAssignedCandidates = [];
-
-      // Iterate over each candidate ID to check and update
+      // Iterate over each candidate ID to update or remove recruiter
       for (let candidateId of candidateObjectIds) {
         const candidate = processToUpdate.interestedCandidates.find(
           (c) => c._id.toString() === candidateId.toString()
         );
 
         if (candidate) {
-          if (candidate.assignedRecruiterId?.equals(recruiterObjectId)) {
-            alreadyAssignedCandidates.push(candidate._id.toString());
+          if (recruiterId === null && newAssignedRecruiter === null) {
+            // If null, reset the recruiter information (undo operation)
+            candidate.assignedRecruiter = null;
+            candidate.assignedRecruiterId = null;
+            candidate.assignedRecruiterDate = null;
           } else {
+            // Convert recruiterId to ObjectId for MongoDB
+            const recruiterObjectId = new mongoose.Types.ObjectId(recruiterId);
+
+            // Normal assignment
             candidate.assignedRecruiter = newAssignedRecruiter;
             candidate.assignedRecruiterId = recruiterObjectId;
             candidate.assignedRecruiterDate = currentDateInIST;
@@ -661,18 +729,9 @@ router.put(
       // Save the updated client
       await client.save();
 
-      // update the counts in the user schema
-      // await updateRecruiterCounts(recruiterId);
-
-      // Prepare response message
-      if (alreadyAssignedCandidates.length > 0) {
-        res.status(200).json({
-          message: "Some candidates were already assigned to this recruiter",
-          alreadyAssignedCandidates,
-        });
-      } else {
-        res.status(200).json({ message: "Recruiters assigned successfully" });
-      }
+      res
+        .status(200)
+        .json({ message: "Recruiters assigned or removed successfully" });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "Internal server error" });
@@ -681,6 +740,107 @@ router.put(
 );
 
 
+// API to undo recruiter assignments for multiple candidates
+router.put('/undo-multiple-recruiter-assignments', async (req, res) => {
+  try {
+    const { clientId, ids } = req.body; // Array of candidate IDs
+
+    // Perform the update: Set assignedRecruiter, recruiterId, and date to null for the selected candidates
+    await Candidate.updateMany(
+      { _id: { $in: ids }, clientId: clientId },
+      { $set: { assignedRecruiter: null, recruiterId: null, date: null } }
+    );
+
+    res.status(200).send({ message: 'Recruiter assignments undone successfully' });
+  } catch (error) {
+    console.error('Error undoing recruiter assignments', error);
+    res.status(500).send({ message: 'Failed to undo recruiter assignments' });
+  }
+});
+
+
+// router.put(
+//   "/clients/assign-recruiter/:clientId/:processId",
+//   async (req, res) => {
+//     const { clientId, processId } = req.params;
+//     const { ids, recruiterId, newAssignedRecruiter } = req.body;
+
+//     if (!ids || !recruiterId || !newAssignedRecruiter) {
+//       return res.status(400).json({ message: "Invalid request body" });
+//     }
+
+//     try {
+//       const client = await ClientSheet.findById(clientId);
+
+//       if (!client) {
+//         return res.status(404).json({ message: "Client not found" });
+//       }
+
+//       // Find the correct process within clientProcess array
+//       const processToUpdate = client.clientProcess.find(
+//         (process) => process._id.toString() === processId
+//       );
+
+//       if (!processToUpdate) {
+//         return res.status(404).json({ message: "Process not found" });
+//       }
+
+//       // Convert recruiterId to ObjectId
+//       const recruiterObjectId = new mongoose.Types.ObjectId(recruiterId);
+
+//       // Convert candidate IDs to ObjectId
+//       const candidateObjectIds = ids.map(
+//         (id) => new mongoose.Types.ObjectId(id)
+//       );
+
+//       // Get the current date in IST
+//       const currentDateInIST = moment()
+//         .tz("Asia/Kolkata")
+//         .format("YYYY-MM-DD HH:mm:ss");
+
+//       // Array to store IDs of candidates already assigned to the same recruiter
+//       let alreadyAssignedCandidates = [];
+
+//       // Iterate over each candidate ID to check and update
+//       for (let candidateId of candidateObjectIds) {
+//         const candidate = processToUpdate.interestedCandidates.find(
+//           (c) => c._id.toString() === candidateId.toString()
+//         );
+
+//         if (candidate) {
+//           if (candidate.assignedRecruiterId?.equals(recruiterObjectId)) {
+//             alreadyAssignedCandidates.push(candidate._id.toString());
+//           } else {
+//             candidate.assignedRecruiter = newAssignedRecruiter;
+//             candidate.assignedRecruiterId = recruiterObjectId;
+//             candidate.assignedRecruiterDate = currentDateInIST;
+//           }
+//         }
+//       }
+
+//       // Save the updated client
+//       await client.save();
+
+//       // update the counts in the user schema
+//       // await updateRecruiterCounts(recruiterId);
+
+//       // Prepare response message
+//       if (alreadyAssignedCandidates.length > 0) {
+//         res.status(200).json({
+//           message: "Some candidates were already assigned to this recruiter",
+//           alreadyAssignedCandidates,
+//         });
+//       } else {
+//         res.status(200).json({ message: "Recruiters assigned successfully" });
+//       }
+//     } catch (error) {
+//       console.error(error);
+//       res.status(500).json({ message: "Internal server error" });
+//     }
+//   }
+// );
+
+// getting the selected candidates
 router.get("/selected-candidates", async (req, res) => {
   try {
     // Fetch all clients
@@ -885,8 +1045,6 @@ router.delete(
 //   }
 // });
 
-
-
 // prof and exp are alone not working
 
 // router.get('/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?', async (req, res) => {
@@ -999,181 +1157,139 @@ router.delete(
 //   }
 // });
 
-
 // prof and exp are alone not working
-router.get('/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?', async (req, res) => {
-  const { clientId, processId, lang, proficiencyLevels, exp } = req.params;  // Changed from req.query to req.params
+router.get(
+  "/filteredCandidatesFilter/:clientId/:processId/:lang?/:proficiencyLevels?/:exp?",
+  async (req, res) => {
+    const { clientId, processId, lang, proficiencyLevels, exp } = req.params; // Changed from req.query to req.params
 
-  try {
-    // Find the client by clientId
-    const client = await ClientSheet.findById(clientId);
+    try {
+      // Find the client by clientId
+      const client = await ClientSheet.findById(clientId);
 
-    if (!client) {
-      return res.status(404).json({ message: "Client not found" });
-    }
-
-    // Find the process by processId
-    const process = client.clientProcess.id(processId);
-
-    if (!process) {
-      return res.status(404).json({ message: "Process not found" });
-    }
-
-    // Initialize filter conditions for candidates
-    let filterConditions = {};
-
-    // Handle Language and Proficiency Filter
-    if (lang || proficiencyLevels) {
-      filterConditions.language = { $elemMatch: {} };
-
-      if (lang) {
-        filterConditions.language.$elemMatch.lang = lang;
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
       }
 
-      if (proficiencyLevels) {
-        const proficiencyLevelsArray = proficiencyLevels.split(","); // Split the comma-separated proficiency levels
-        filterConditions.language.$elemMatch.proficiencyLevel = {
-          $in: proficiencyLevelsArray,
-        };
+      // Find the process by processId
+      const process = client.clientProcess.id(processId);
+
+      if (!process) {
+        return res.status(404).json({ message: "Process not found" });
       }
-    }
 
-    // Handle Experience Filter
-    if (exp) {
-      if (exp.toLowerCase() === 'fresher' || exp === '0') {
-        filterConditions.exp = { $in: ['Fresher', 'fresher', '0'] };  // Ensure 0 is treated as a string
-      } else if (exp.includes('-')) {
-        // Handle range filtering like '1-3'
-        const [min, max] = exp.split('-').map(val => parseFloat(val.trim()));
+      // Initialize filter conditions for candidates
+      let filterConditions = {};
 
-        if (isNaN(min) || isNaN(max)) {
-          return res.status(400).json({ error: "Invalid experience range format" });
+      // Handle Language and Proficiency Filter
+      if (lang || proficiencyLevels) {
+        filterConditions.language = { $elemMatch: {} };
+
+        if (lang) {
+          filterConditions.language.$elemMatch.lang = lang;
         }
 
-        // Ensure numeric comparison
-        filterConditions.exp = {
-          $gte: min,
-          $lte: max,
-        };
-      } else if (exp === '10+') {
-        // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
-        filterConditions.exp = { $gte: 10.1 };
-      }
-    }
-
-    // Log the constructed filter for debugging
-    console.log("Constructed filter:", JSON.stringify(filterConditions, null, 2));
-
-    // Apply the filters to the interestedCandidates
-    const filteredCandidates = process.interestedCandidates.filter((candidate) => {
-      // Apply the language and proficiency filter if it exists
-      let matchLang = true;
-      let matchProficiency = true;
-      if (filterConditions.language) {
-        matchLang = filterConditions.language.$elemMatch.lang
-          ? candidate.language.some((l) => l.lang === filterConditions.language.$elemMatch.lang)
-          : true;
-        matchProficiency = filterConditions.language.$elemMatch.proficiencyLevel
-          ? candidate.language.some((l) =>
-              filterConditions.language.$elemMatch.proficiencyLevel.$in.includes(l.proficiencyLevel)
-            )
-          : true;
-      }
-
-      // Apply the experience filter if it exists
-      let matchExp = true;
-      if (filterConditions.exp) {
-        if (filterConditions.exp.$in) {
-          matchExp = filterConditions.exp.$in.includes(candidate.exp);
-        } else if (filterConditions.exp.$gte !== undefined && filterConditions.exp.$lte !== undefined) {
-          matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte &&
-            parseFloat(candidate.exp) <= filterConditions.exp.$lte;
-        } else if (filterConditions.exp.$gte !== undefined) {
-          matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte;
+        if (proficiencyLevels) {
+          const proficiencyLevelsArray = proficiencyLevels.split(","); // Split the comma-separated proficiency levels
+          filterConditions.language.$elemMatch.proficiencyLevel = {
+            $in: proficiencyLevelsArray,
+          };
         }
       }
 
-      return matchLang && matchProficiency && matchExp;
-    });
+      // Handle Experience Filter
+      if (exp) {
+        if (exp.toLowerCase() === "fresher" || exp === "0") {
+          filterConditions.exp = { $in: ["Fresher", "fresher", "0"] }; // Ensure 0 is treated as a string
+        } else if (exp.includes("-")) {
+          // Handle range filtering like '1-3'
+          const [min, max] = exp
+            .split("-")
+            .map((val) => parseFloat(val.trim()));
 
-    // Convert experience fields from strings to numbers after filtering
-    filteredCandidates.forEach((candidate) => {
-      if (typeof candidate.exp === 'string') {
-        candidate.exp = parseFloat(candidate.exp);
+          if (isNaN(min) || isNaN(max)) {
+            return res
+              .status(400)
+              .json({ error: "Invalid experience range format" });
+          }
+
+          // Ensure numeric comparison
+          filterConditions.exp = {
+            $gte: min,
+            $lte: max,
+          };
+        } else if (exp === "10+") {
+          // Handle '10+' case, filter candidates with experience greater than or equal to 10.1
+          filterConditions.exp = { $gte: 10.1 };
+        }
       }
-    });
 
-    // Return the filtered candidates
-    res.status(200).json(filteredCandidates);
-  } catch (error) {
-    console.error("Error filtering candidates:", error);
-    res.status(500).json({ message: "Failed to filter candidates", error: error.message });
+      // Log the constructed filter for debugging
+      console.log(
+        "Constructed filter:",
+        JSON.stringify(filterConditions, null, 2)
+      );
+
+      // Apply the filters to the interestedCandidates
+      const filteredCandidates = process.interestedCandidates.filter(
+        (candidate) => {
+          // Apply the language and proficiency filter if it exists
+          let matchLang = true;
+          let matchProficiency = true;
+          if (filterConditions.language) {
+            matchLang = filterConditions.language.$elemMatch.lang
+              ? candidate.language.some(
+                  (l) => l.lang === filterConditions.language.$elemMatch.lang
+                )
+              : true;
+            matchProficiency = filterConditions.language.$elemMatch
+              .proficiencyLevel
+              ? candidate.language.some((l) =>
+                  filterConditions.language.$elemMatch.proficiencyLevel.$in.includes(
+                    l.proficiencyLevel
+                  )
+                )
+              : true;
+          }
+
+          // Apply the experience filter if it exists
+          let matchExp = true;
+          if (filterConditions.exp) {
+            if (filterConditions.exp.$in) {
+              matchExp = filterConditions.exp.$in.includes(candidate.exp);
+            } else if (
+              filterConditions.exp.$gte !== undefined &&
+              filterConditions.exp.$lte !== undefined
+            ) {
+              matchExp =
+                parseFloat(candidate.exp) >= filterConditions.exp.$gte &&
+                parseFloat(candidate.exp) <= filterConditions.exp.$lte;
+            } else if (filterConditions.exp.$gte !== undefined) {
+              matchExp = parseFloat(candidate.exp) >= filterConditions.exp.$gte;
+            }
+          }
+
+          return matchLang && matchProficiency && matchExp;
+        }
+      );
+
+      // Convert experience fields from strings to numbers after filtering
+      filteredCandidates.forEach((candidate) => {
+        if (typeof candidate.exp === "string") {
+          candidate.exp = parseFloat(candidate.exp);
+        }
+      });
+
+      // Return the filtered candidates
+      res.status(200).json(filteredCandidates);
+    } catch (error) {
+      console.error("Error filtering candidates:", error);
+      res
+        .status(500)
+        .json({ message: "Failed to filter candidates", error: error.message });
+    }
   }
-});
-
-
-
-
-
-
-// router.get(
-//   "/clients/:clientId/process/:processId/filterLangFilter",
-//   async (req, res) => {
-//     const { clientId, processId } = req.params;
-//     const { lang, proficiencyLevel } = req.query;
-
-//     try {
-//       const client = await ClientSheet.findById(clientId);
-
-//       if (!client) {
-//         return res.status(404).json({ message: "Client not found" });
-//       }
-
-//       const process = client.clientProcess.id(processId);
-
-//       if (!process) {
-//         return res.status(404).json({ message: "Process not found" });
-//       }
-
-//       // Construct the filter for $elemMatch
-//       let candidateFilter = (candidate) => true;
-
-//       if (lang || proficiencyLevel) {
-//         candidateFilter = (candidate) => {
-//           const matchLang = lang
-//             ? candidate.language.some((l) => l.lang === lang)
-//             : true;
-//           const matchProficiency = proficiencyLevel
-//             ? candidate.language.some((l) =>
-//                 proficiencyLevel.split(",").includes(l.proficiencyLevel)
-//               )
-//             : true;
-//           return matchLang && matchProficiency;
-//         };
-//       }
-
-//       // Filter candidates based on language and proficiency
-//       const filteredCandidates = process.interestedCandidates.filter(
-//         (candidate) => candidateFilter(candidate)
-//       );
-
-//       res.status(200).json(filteredCandidates);
-//     } catch (error) {
-//       console.error("Error filtering candidates:", error);
-//       res
-//         .status(500)
-//         .json({ message: "Failed to filter candidates", error: error.message });
-//     }
-//   }
-// );
-
-
-
-
-
-
-
-
+);
 
 // adding lang and proficiency filter for interested candidate
 router.get(
@@ -1231,9 +1347,6 @@ router.get(
   }
 );
 
-
-
-
 // adding lang and proficiency filter for seleted candidate
 router.get("/selectedFilter", async (req, res) => {
   const { lang, proficiencyLevel } = req.query;
@@ -1269,7 +1382,6 @@ router.get("/selectedFilter", async (req, res) => {
               );
             }
 
-
             if (matchLang && matchProficiency) {
               // Add candidate with enhanced data to the response array
               selectedCandidates.push({
@@ -1292,6 +1404,55 @@ router.get("/selectedFilter", async (req, res) => {
   }
 });
 
-
-
 export default router;
+
+// router.get(
+//   "/clients/:clientId/process/:processId/filterLangFilter",
+//   async (req, res) => {
+//     const { clientId, processId } = req.params;
+//     const { lang, proficiencyLevel } = req.query;
+
+//     try {
+//       const client = await ClientSheet.findById(clientId);
+
+//       if (!client) {
+//         return res.status(404).json({ message: "Client not found" });
+//       }
+
+//       const process = client.clientProcess.id(processId);
+
+//       if (!process) {
+//         return res.status(404).json({ message: "Process not found" });
+//       }
+
+//       // Construct the filter for $elemMatch
+//       let candidateFilter = (candidate) => true;
+
+//       if (lang || proficiencyLevel) {
+//         candidateFilter = (candidate) => {
+//           const matchLang = lang
+//             ? candidate.language.some((l) => l.lang === lang)
+//             : true;
+//           const matchProficiency = proficiencyLevel
+//             ? candidate.language.some((l) =>
+//                 proficiencyLevel.split(",").includes(l.proficiencyLevel)
+//               )
+//             : true;
+//           return matchLang && matchProficiency;
+//         };
+//       }
+
+//       // Filter candidates based on language and proficiency
+//       const filteredCandidates = process.interestedCandidates.filter(
+//         (candidate) => candidateFilter(candidate)
+//       );
+
+//       res.status(200).json(filteredCandidates);
+//     } catch (error) {
+//       console.error("Error filtering candidates:", error);
+//       res
+//         .status(500)
+//         .json({ message: "Failed to filter candidates", error: error.message });
+//     }
+//   }
+// );
