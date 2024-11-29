@@ -103,10 +103,12 @@ router.get("/clients/:id", async (req, res) => {
   }
 });
 
-// delete client by id
+// delete client by id and update candidates in Mastersheet
 router.delete("/clients/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Find the client by ID
     const client = await ClientSheet.findById(id);
 
     if (!client) {
@@ -114,14 +116,47 @@ router.delete("/clients/:id", async (req, res) => {
         message: "Client not found",
       });
     }
+
+    // Extract client name for updating the candidates in Mastersheet
+    const clientName = client.clientName;
+
+    // Delete the client first
     await client.deleteOne();
-    res.json({ message: "Client Deleted successfully" });
+
+    // Now update candidates where isProcessAssigned=true and assignProcess includes the clientName
+    const updateResult = await Mastersheet.updateMany(
+      {
+        isProcessAssigned: true, 
+        assignProcess: { $regex: new RegExp(`^${clientName} -`, 'i') } // matches "Amazon -" or any process tied to Amazon
+      },
+      { 
+        $set: {
+          isProcessAssigned: false,
+          assignProcess: null,
+          assignedRecruiter: null
+        }
+      }
+    );
+
+    // Send response based on update result
+    if (updateResult.modifiedCount > 0) {
+      res.json({ 
+        message: `Client and associated candidates updated successfully. ${updateResult.modifiedCount} candidates updated.`
+      });
+    } else {
+      res.json({ 
+        message: "Client deleted successfully. No candidates were assigned to this client's process."
+      });
+    }
+
   } catch (error) {
+    console.error('Error deleting client and updating candidates:', error);
     res.status(500).json({
-      message: error.message,
+      message: "Server error: " + error.message,
     });
   }
 });
+
 
 // update client by id
 router.put("/clients/:id", async (req, res) => {
@@ -264,49 +299,63 @@ router.delete("/clients/:clientId/process/:processId", async (req, res) => {
   const { clientId, processId } = req.params;
 
   try {
+    // Find the client by ID
     const client = await ClientSheet.findById(clientId);
 
     if (!client) {
       return res.status(404).json({ message: "Client not found" });
     }
 
+    // Find the process within the client
     const process = client.clientProcess.id(processId);
 
     if (!process) {
       return res.status(404).json({ message: "Process not found" });
     }
 
+    // Store process details before deleting for candidate updates
+    const clientName = client.clientName;
+    const processName = process.clientProcessName;
+    const processLanguage = process.clientProcessLanguage;
+
+    // Delete the process
     process.deleteOne();
     await client.save();
 
-    // Get all active processes across all clients
-    const allClients = await ClientSheet.find();
-    let activeProcesses = [];
+    // Now update candidates where the assignProcess matches the deleted process details
+    const assignProcessString = `${clientName} - ${processName} - ${processLanguage}`;
+    
+    const updateResult = await Mastersheet.updateMany(
+      {
+        isProcessAssigned: true, 
+        assignProcess: assignProcessString
+      },
+      { 
+        $set: {
+          isProcessAssigned: false,
+          assignProcess: null,
+          assignedRecruiter: null
+        }
+      }
+    );
 
-    allClients.forEach((client) => {
-      client.clientProcess.forEach((process) => {
-        activeProcesses.push({
-          clientName: client.clientName,
-          clientProcessName: process.clientProcessName,
-          clientProcessLanguage: process.clientProcessLanguage,
-        });
+    // Send response based on the number of candidates updated
+    if (updateResult.modifiedCount > 0) {
+      res.json({ 
+        message: `Process deleted successfully. ${updateResult.modifiedCount} candidates updated.`
       });
-    });
+    } else {
+      res.json({ 
+        message: "Process deleted successfully. No candidates were assigned to this process."
+      });
+    }
 
-    // Update assignProcess field for all candidates
-    const processInfoList = activeProcesses.map(
-      (process) =>
-        `${process.clientName} - ${process.clientProcessName} - ${process.clientProcessLanguage}`
-    );
-
-    console.log(
-      "---------------------------Process options is updated after deletion of one process------------------"
-    );
-    res.status(200).json({ message: "Process deleted" });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Error deleting process and updating candidates:', error);
+    res.status(500).json({ message: "Server error: " + error.message });
   }
 });
+
 
 // Endpoint to fetch assignProcess options to be used in the frontend
 router.get("/process-options", async (req, res) => {
@@ -345,24 +394,32 @@ router.get("/process-options", async (req, res) => {
 router.get('/candidate', async (req, res) => {
   try {
     // Extract candidateId from request body
-    const { candidateId } = req.body;
+    const { name } = req.body;
+    // const { candidateId } = req.body;
 
     // Check if candidateId is provided
-    if (!candidateId) {
+    if (!name) {
       return res.status(400).json({ message: 'Candidate ID is required' });
+    // if (!candidateId) {
+    //   return res.status(400).json({ message: 'Candidate ID is required' });
     }
 
     // Validate candidateId format (optional)
-    if (!mongoose.Types.ObjectId.isValid(candidateId)) {
-      return res.status(400).json({ message: 'Invalid Candidate ID format' });
-    }
+    // if (!mongoose.Types.ObjectId.isValid(candidateId)) {
+    //   return res.status(400).json({ message: 'Invalid Candidate ID format' });
+    // }
 
     // Query to search for the candidate across all processes
     const clientData = await ClientSheet.find({
-      'clientProcess.interestedCandidates.candidateId': candidateId,
+      'clientProcess.interestedCandidates.name': name,
     }, {
       'clientProcess.$': 1 // Project only the matched client processes
     });
+    // const clientData = await ClientSheet.find({
+    //   'clientProcess.interestedCandidates.candidateId': candidateId,
+    // }, {
+    //   'clientProcess.$': 1 // Project only the matched client processes
+    // });
 
     if (!clientData || clientData.length === 0) {
       return res.status(404).json({ message: 'Candidate not found' });
@@ -374,7 +431,7 @@ router.get('/candidate', async (req, res) => {
     // Loop through all the returned client processes to find the candidate
     clientData.forEach(client => {
       client.clientProcess.forEach(process => {
-        const candidate = process.interestedCandidates.find(c => c.candidateId.toString() === candidateId);
+        const candidate = process.interestedCandidates.find(c => c.name.toString() === name);
 
         if (candidate) {
           // Add candidate and process information to the results array
@@ -385,6 +442,19 @@ router.get('/candidate', async (req, res) => {
         }
       });
     });
+    // clientData.forEach(client => {
+    //   client.clientProcess.forEach(process => {
+    //     const candidate = process.interestedCandidates.find(c => c.candidateId.toString() === candidateId);
+
+    //     if (candidate) {
+    //       // Add candidate and process information to the results array
+    //       results.push({
+    //         ...candidate._doc, // Spread all the candidate data
+    //         processName: process.clientProcessName // Add process name to the result
+    //       });
+    //     }
+    //   });
+    // });
 
     // Send the filtered results back
     res.status(200).json(results);
@@ -666,7 +736,6 @@ router.put(
 );
 
 // PUT request to handle multiple candidates, to assign a common recruiter (holds a function call for the updateRecruiterCounts function given below)
-
 router.put(
   "/clients/assign-recruiter/:clientId/:processId",
   async (req, res) => {
